@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>TicTime - Suivi de salaire</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1E4A6F">
+    <meta name="theme-color" content="#F2F4F8">
     <link rel="apple-touch-icon" href="icon-192.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -111,6 +111,9 @@
         .hamburger { background: var(--card-bg); border: 1px solid var(--card-border); font-size: 22px; width: 44px; height: 44px; border-radius: 50%; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
         .hamburger:active { transform: scale(0.94); }
         .main-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.2px; color: var(--text-primary); }
+        .logo-mark { display: flex; align-items: center; justify-content: center; gap: 0.32em; }
+        .logo-mark .logo-tic { color: var(--accent); }
+        .logo-mark span { letter-spacing: -0.02em; }
         .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 24px; padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
         .hero-card { text-align: center; padding: 26px 20px; }
         .date-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; }
@@ -261,6 +264,8 @@
         highPerformance: false,
         accentColor: "#0A84FF", compactMode: false
     };
+    // Logo TicTime (coche-chrono) réutilisé dans les titres
+    const LOGO_HTML = `<svg width="1em" height="1em" viewBox="0 0 72 72" style="flex-shrink:0;" aria-hidden="true"><defs><linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A84FF"/><stop offset="1" stop-color="#2E9E63"/></linearGradient></defs><rect width="72" height="72" rx="17" fill="url(#logoGrad)"/><rect x="33" y="7" width="6" height="6" rx="2" fill="white"/><circle cx="36" cy="40" r="20" stroke="white" stroke-width="4.5" fill="none"/><path d="M27 40 L34 47 L46 32" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="logo-tic">Tic</span><span>Time</span>`;
     let locked = false;
     let lockPassword = "0000";
     let autoSaveInterval = null;
@@ -599,7 +604,7 @@
             <div class="app" style="justify-content:center;">
                 <div class="main-card" style="padding:20px; max-width:100%; margin:0; justify-content:center;">
                     <div class="card" style="width:100%;">
-                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title" style="font-size:2rem;">TicTime</div></div>
+                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title logo-mark" style="font-size:1.7rem;">${LOGO_HTML}</div></div>
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-top:8px; margin-bottom:24px;">${title}</div>
                         <div class="inline-switch" style="margin-bottom:20px;">
                             <span id="modeSimpleLabel">Mode simple</span>
@@ -861,7 +866,7 @@
             <div class="app" style="justify-content:center;">
                 <div class="main-card" style="padding:20px; max-width:100%; margin:0; justify-content:center;">
                     <div class="card" style="width:100%;">
-                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title" style="font-size:2rem;">TicTime</div></div>
+                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title logo-mark" style="font-size:1.7rem;">${LOGO_HTML}</div></div>
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-bottom:24px;">Réglages</div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Mode sombre</label><select id="darkModeSelect" class="time-input-group select"><option value="auto" ${userPrefs.autoDarkMode?'selected':''}>Automatique (système)</option><option value="light" ${!userPrefs.autoDarkMode && !userPrefs.darkMode?'selected':''}>Clair</option><option value="dark" ${!userPrefs.autoDarkMode && userPrefs.darkMode?'selected':''}>Sombre</option></select></div>
                         <div class="inline-switch" style="margin-bottom:20px;"><span>Mode nuit automatique (selon plage horaire)</span><label class="switch"><input type="checkbox" id="autoNightModeToggle" ${userPrefs.autoNightMode?'checked':''}><span class="slider"></span></label></div>
@@ -1401,7 +1406,7 @@
                 <div class="main-card">
                     <div class="top-bar">
                         <div class="left-group"><button class="hamburger" id="hamburgerBtn">≡</button></div>
-                        <div class="title-container"><div class="main-title">TicTime</div></div>
+                        <div class="title-container"><div class="main-title logo-mark">${LOGO_HTML}</div></div>
                         <div class="right-group"><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
                     </div>
                     <div class="card hero-card">
