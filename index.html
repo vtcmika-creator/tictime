@@ -113,10 +113,10 @@
         .main-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.2px; color: var(--text-primary); }
         .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 24px; padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
         .hero-card { text-align: center; padding: 26px 20px; }
-        .date-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; text-transform: capitalize; }
+        .date-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; }
         .hero-timer { font-size: 3.3rem; font-weight: 300; letter-spacing: -1.5px; line-height: 1.15; color: var(--text-primary); font-variant-numeric: tabular-nums; }
         .card-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
-        .card-title { font-weight: 600; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .card-title { font-weight: 500; color: var(--text-secondary); font-size: 0.88rem; letter-spacing: 0; margin-bottom: 12px; }
         .counter-value { font-size: 1.7rem; font-weight: 500; color: var(--text-primary); margin: 8px 0; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
         .real-time { font-size: 0.72rem; color: var(--text-secondary); opacity: 0.75; margin-top: 0; font-variant-numeric: tabular-nums; }
         .button-group { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
@@ -1438,7 +1438,7 @@
             </div>
         `;
         const dateLabel = document.getElementById('dateLabel');
-        if (dateLabel) dateLabel.innerText = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        if (dateLabel) { const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }); dateLabel.innerText = d.charAt(0).toUpperCase() + d.slice(1); }
         attachMainEvents();
         startTimer();
         updateAllDisplays();
