@@ -13,34 +13,40 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
     <style>
         /* ---------- Styles globaux ---------- */
         :root {
-            --bg-page: #F5F7FA;
-            --card-bg: white;
-            --text-primary: #1E2A3A;
-            --text-secondary: #5B6E8C;
-            --accent: #1E4A6F;
-            --border-light: #EDF2F7;
-            --btn-primary-bg: #1E4A6F;
-            --btn-primary-hover: #0f3a56;
-            --btn-lunch-bg: #D97706;
-            --btn-lunch-hover: #b55d04;
-            --btn-secondary-bg: #E2E8F0;
-            --btn-secondary-hover: #cbd5e1;
-            --btn-stop-bg: #B91C1C;
-            --btn-stop-hover: #9b1616;
-            --salary-brut: #B45309;
-            --salary-net: #2F6B47;
-            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
-            --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
-            --transition: all 0.2s;
+            --bg-page: #F2F4F8;
+            --bg-gradient: linear-gradient(165deg, #E9F0F9 0%, #EFECF7 50%, #F5F0EA 100%);
+            --card-bg: rgba(255, 255, 255, 0.66);
+            --card-border: rgba(255, 255, 255, 0.85);
+            --card-solid: #FFFFFF;
+            --text-primary: #1C2430;
+            --text-secondary: #6B7A90;
+            --accent: #0A84FF;
+            --border-light: rgba(108, 122, 144, 0.16);
+            --btn-primary-bg: #0A84FF;
+            --btn-primary-hover: #006FE0;
+            --btn-lunch-bg: #E8943A;
+            --btn-lunch-hover: #D27F26;
+            --btn-secondary-bg: rgba(120, 130, 150, 0.14);
+            --btn-secondary-hover: rgba(120, 130, 150, 0.24);
+            --btn-stop-bg: #E5484D;
+            --btn-stop-hover: #C73E42;
+            --salary-brut: #1C2430;
+            --salary-net: #2E9E63;
+            --shadow-sm: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.06);
+            --shadow-hover: 0 4px 16px rgba(16,24,40,0.10);
+            --transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         /* Thème haute lisibilité (contraste élevé) */
         body.high-contrast {
             --bg-page: #FFFFFF;
+            --bg-gradient: none;
             --card-bg: #F0F0F0;
+            --card-border: #CCCCCC;
+            --card-solid: #FFFFFF;
             --text-primary: #000000;
             --text-secondary: #222222;
             --accent: #0000AA;
@@ -56,69 +62,83 @@
             --salary-brut: #000000;
             --salary-net: #000000;
         }
-        /* Thème haute performance (désactive les transitions) */
+        /* Thème haute performance (désactive transitions et flou) */
         body.high-performance, body.high-performance * {
             transition: none !important;
             animation: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        body.high-contrast, body.high-contrast * {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
         }
         body.dark {
-            --bg-page: #121212;
-            --card-bg: #1E1E2E;
-            --text-primary: #E2E8F0;
-            --text-secondary: #94A3B8;
-            --border-light: #2D2D3A;
-            --btn-secondary-bg: #334155;
-            --btn-secondary-hover: #475569;
-            --btn-primary-bg: #3B82F6;
-            --btn-primary-hover: #2563eb;
-            --btn-lunch-bg: #F59E0B;
-            --btn-lunch-hover: #d97706;
-            --btn-stop-bg: #DC2626;
-            --btn-stop-hover: #b91c1c;
-            --salary-brut: #F59E0B;
-            --salary-net: #10B981;
-            --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
-            --shadow-hover: 0 4px 12px rgba(0,0,0,0.3);
+            --bg-page: #14161B;
+            --bg-gradient: linear-gradient(165deg, #14161C 0%, #17161E 50%, #1A1814 100%);
+            --card-bg: rgba(255, 255, 255, 0.06);
+            --card-border: rgba(255, 255, 255, 0.09);
+            --card-solid: #1F222A;
+            --text-primary: #ECEFF4;
+            --text-secondary: #94A0B0;
+            --border-light: rgba(148, 160, 176, 0.16);
+            --btn-secondary-bg: rgba(255, 255, 255, 0.10);
+            --btn-secondary-hover: rgba(255, 255, 255, 0.17);
+            --btn-primary-bg: #0A84FF;
+            --btn-primary-hover: #2E95FF;
+            --btn-lunch-bg: #E8943A;
+            --btn-lunch-hover: #F0A451;
+            --btn-stop-bg: #FF5257;
+            --btn-stop-hover: #FF6B6F;
+            --salary-brut: #ECEFF4;
+            --salary-net: #41C98A;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.30);
+            --shadow-hover: 0 4px 16px rgba(0,0,0,0.40);
         }
         body.compact .card { padding: 12px; }
-        body.compact .counter-value { font-size: 1.5rem; }
-        body.compact .salary-value { font-size: 1.2rem; }
+        body.compact .counter-value { font-size: 1.3rem; }
+        body.compact .hero-timer { font-size: 2.3rem; }
+        body.compact .salary-value { font-size: 1.15rem; }
         body.compact .btn { padding: 6px 12px; font-size: 0.8rem; }
         body.compact .main-card { gap: 12px; padding: 16px; }
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { background: var(--bg-page); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; transition: background 0.3s, color 0.2s; color: var(--text-primary); }
+        body { background: var(--bg-gradient), var(--bg-page); background-attachment: fixed; font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; min-height: 100vh; transition: background 0.3s, color 0.2s; color: var(--text-primary); }
         .app { display: flex; flex-direction: column; min-height: 100vh; }
         .main-card { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
         .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
         .left-group, .right-group { display: flex; align-items: center; gap: 12px; }
         .title-container { text-align: center; flex: 1; }
-        .hamburger { background: var(--card-bg); border: none; font-size: 24px; width: 44px; height: 44px; border-radius: 24px; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); box-shadow: var(--shadow-sm); }
-        .hamburger:active { transform: scale(0.96); }
-        .main-title { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.6rem; letter-spacing: -0.5px; background: linear-gradient(135deg, #10B981, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-        .card { background: var(--card-bg); border-radius: 28px; padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); }
+        .hamburger { background: var(--card-bg); border: 1px solid var(--card-border); font-size: 22px; width: 44px; height: 44px; border-radius: 50%; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .hamburger:active { transform: scale(0.94); }
+        .main-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.2px; color: var(--text-primary); }
+        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 24px; padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
+        .hero-card { text-align: center; padding: 26px 20px; }
+        .date-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; text-transform: capitalize; }
+        .hero-timer { font-size: 3.3rem; font-weight: 300; letter-spacing: -1.5px; line-height: 1.15; color: var(--text-primary); font-variant-numeric: tabular-nums; }
         .card-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
         .card-title { font-weight: 600; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-        .counter-value { font-family: monospace; font-size: 2.2rem; font-weight: 700; color: var(--accent); margin: 8px 0; }
-        .real-time { font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: -4px; }
-        .button-group { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
-        .btn { padding: 10px 20px; border-radius: 48px; font-size: 0.9rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); background: var(--btn-secondary-bg); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .counter-value { font-size: 1.7rem; font-weight: 500; color: var(--text-primary); margin: 8px 0; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+        .real-time { font-size: 0.72rem; color: var(--text-secondary); opacity: 0.75; margin-top: 0; font-variant-numeric: tabular-nums; }
+        .button-group { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+        .btn { padding: 12px 24px; border-radius: 100px; font-size: 0.92rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); background: var(--btn-secondary-bg); color: var(--text-primary); }
         .btn:active { transform: scale(0.96); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .btn-primary { background: var(--btn-primary-bg); color: white; }
-        .btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover); transform: translateY(-2px); }
+        .btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover); }
         .btn-lunch { background: var(--btn-lunch-bg); color: white; }
-        .btn-lunch:hover:not(:disabled) { background: var(--btn-lunch-hover); transform: translateY(-2px); }
+        .btn-lunch:hover:not(:disabled) { background: var(--btn-lunch-hover); }
         .btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); }
-        .btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-hover); transform: translateY(-2px); }
-        .btn-stop { background: var(--btn-stop-bg); color: white; }
-        .btn-stop:hover:not(:disabled) { background: var(--btn-stop-hover); transform: translateY(-2px); }
-        .salary-row { display: flex; gap: 16px; margin-bottom: 4px; }
-        .salary-card { flex: 1; background: var(--bg-page); border-radius: 24px; padding: 14px; text-align: center; }
-        .salary-value { font-size: 1.8rem; font-weight: 700; }
+        .btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-hover); }
+        .btn-stop { background: transparent; color: var(--btn-stop-bg); align-self: center; padding: 10px 18px; }
+        .btn-stop:hover:not(:disabled) { background: rgba(229, 72, 77, 0.10); }
+        .salary-row { display: flex; gap: 12px; margin-bottom: 4px; }
+        .salary-card { flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 14px; text-align: center; backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
+        .salary-card > div:last-child { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
+        .salary-value { font-size: 1.45rem; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.3px; }
         .brut { color: var(--salary-brut); } .net { color: var(--salary-net); }
         .maj-line { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-light); font-size: 0.85rem; }
         .prime-line { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 0.9rem; }
-        .drawer { position: fixed; top: 0; left: 0; width: 280px; height: 100%; background: var(--card-bg); transform: translateX(-100%); transition: 0.25s; z-index: 1000; display: flex; flex-direction: column; padding: 24px 20px; }
+        .drawer { position: fixed; top: 0; left: 0; width: 280px; height: 100%; background: var(--card-bg); border-right: 1px solid var(--card-border); backdrop-filter: blur(28px) saturate(1.6); -webkit-backdrop-filter: blur(28px) saturate(1.6); transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1000; display: flex; flex-direction: column; padding: 24px 20px; }
         .drawer.open { transform: translateX(0); }
         .drawer-header { display: flex; justify-content: space-between; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }
         .close-drawer { background: none; border: none; font-size: 28px; cursor: pointer; }
@@ -126,22 +146,22 @@
         .menu-section { margin-bottom: 28px; }
         .menu-section-title { font-size: 0.7rem; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px; letter-spacing: 1px; }
         .menu-item { padding: 12px 0; font-size: 0.95rem; border-bottom: 1px solid var(--border-light); cursor: pointer; display: flex; align-items: center; gap: 14px; }
-        .menu-item:hover { background: var(--bg-page); padding-left: 8px; border-radius: 16px; }
+        .menu-item:hover { background: var(--btn-secondary-bg); padding-left: 8px; border-radius: 14px; }
         .history-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
-        .history-item { background: var(--bg-page); border-radius: 20px; padding: 12px; margin-bottom: 10px; font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+        .history-item { background: var(--btn-secondary-bg); border-radius: 16px; padding: 12px; margin-bottom: 10px; font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
         .history-item-content { flex: 1; }
         .delete-session { cursor: pointer; filter: grayscale(1); font-size: 1.2rem; margin-left: 8px; padding: 4px; }
         .delete-session:hover { filter: grayscale(0); opacity: 0.7; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999; display: none; backdrop-filter: blur(2px); }
         .overlay.active { display: block; }
-        .modal-info, .modal-confirm, .modal-input { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-bg); border-radius: 32px; padding: 28px; width: 300px; text-align: center; z-index: 1100; display: none; flex-direction: column; gap: 20px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); }
+        .modal-info, .modal-confirm, .modal-input { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-solid); border: 1px solid var(--card-border); border-radius: 26px; padding: 28px; width: 300px; text-align: center; z-index: 1100; display: none; flex-direction: column; gap: 20px; box-shadow: 0 20px 45px rgba(0,0,0,0.18); }
         .modal-info.active, .modal-confirm.active, .modal-input.active { display: flex; }
-        .modal-info button, .modal-confirm button, .modal-input button { background: var(--btn-primary-bg); color: white; padding: 10px 20px; border-radius: 48px; cursor: pointer; }
+        .modal-info button, .modal-confirm button, .modal-input button { background: var(--btn-primary-bg); color: white; border: none; font-weight: 500; padding: 11px 22px; border-radius: 100px; cursor: pointer; }
         .stats-charts { display: flex; flex-direction: column; gap: 28px; margin-top: 16px; }
         .chart-container { background: var(--card-bg); border-radius: 28px; padding: 16px; }
         canvas { max-height: 220px; width: 100%; }
         .time-input-group { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-        .time-input-group input, select { padding: 10px; border-radius: 20px; border: 1px solid var(--border-light); background: var(--card-bg); color: var(--text-primary); font-size: 0.9rem; }
+        .time-input-group input, select { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-size: 0.9rem; }
         .switch { position: relative; display: inline-block; width: 52px; height: 28px; vertical-align: middle; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.2s; border-radius: 28px; }
@@ -151,7 +171,7 @@
         .help-icon { filter: grayscale(1); cursor: pointer; font-size: 1rem; margin-left: 6px; display: inline-block; }
         .welcome-group { margin-bottom: 20px; }
         .welcome-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); }
-        .input-number { width: 100%; padding: 12px; border-radius: 20px; border: 1px solid var(--border-light); background: var(--card-bg); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 1rem; -moz-appearance: textfield; appearance: textfield; }
+        .input-number { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-family: inherit; font-size: 1rem; -moz-appearance: textfield; appearance: textfield; }
         .inline-switch { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
         .mono-icon { filter: grayscale(1); display: inline-block; font-size: 1.2rem; width: 1.4rem; text-align: center; }
         hr { margin: 16px 0; border-color: var(--border-light); }
@@ -159,7 +179,7 @@
         .settings-group label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary); }
         .mode-active { color: #10B981; font-weight: 600; }
         .prime-custom-name { margin-top: 8px; }
-        .stats-summary { margin-bottom: 16px; text-align: center; font-size: 0.9rem; background: var(--bg-page); border-radius: 24px; padding: 12px; }
+        .stats-summary { margin-bottom: 16px; text-align: center; font-size: 0.9rem; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 12px; }
         .today-btn { display: inline-block; margin-top: 8px; cursor: pointer; color: var(--accent); text-decoration: underline; font-size: 0.8rem; }
         /* Styles pour l'aide en accordéons */
         .help-section summary {
@@ -239,7 +259,7 @@
         autoNightMode: false,
         highContrast: false,
         highPerformance: false,
-        accentColor: "#1E4A6F", compactMode: false
+        accentColor: "#0A84FF", compactMode: false
     };
     let locked = false;
     let lockPassword = "0000";
@@ -471,6 +491,8 @@
     function loadPrefs() {
         const saved = localStorage.getItem('appPrefs');
         if (saved) { try { const p = JSON.parse(saved); userPrefs = { ...userPrefs, ...p }; } catch(e) {} }
+        // Migration : l'ancien bleu marine par défaut devient le nouveau bleu iOS
+        if (userPrefs.accentColor === "#1E4A6F") userPrefs.accentColor = "#0A84FF";
         applyTheme();
     }
     function loadLockPassword() { const saved = localStorage.getItem('lockPassword'); if (saved) lockPassword = saved; }
@@ -821,7 +843,7 @@
             workRules.holidaysList = generateHolidays(new Date().getFullYear());
             saveWorkRules();
             if (isWelcome) {
-                userPrefs.accentColor = "#1E4A6F";
+                userPrefs.accentColor = "#0A84FF";
                 userPrefs.autoDarkMode = true;
                 userPrefs.compactMode = false;
                 savePrefs();
@@ -1382,12 +1404,13 @@
                         <div class="title-container"><div class="main-title">TicTime</div></div>
                         <div class="right-group"><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
                     </div>
-                    <div class="salary-row"><div class="salary-card"><div class="salary-value brut" id="brutTotal">0,00 €</div><div>Brut</div></div><div class="salary-card"><div class="salary-value net" id="netTotal">0,00 €</div><div>Net</div></div></div>
-                    <div class="card">
-                        <div class="card-header"><span class="card-title">Temps travaillé</span><span class="counter-value" id="workTime">00:00:00</span></div>
+                    <div class="card hero-card">
+                        <div class="date-label" id="dateLabel"></div>
+                        <div class="hero-timer" id="workTime">00:00:00</div>
                         <div class="real-time" id="realTime">réel: 00:00:00</div>
                         <div class="button-group"><button class="btn btn-primary" id="startWorkBtn">Commencer</button></div>
                     </div>
+                    <div class="salary-row"><div class="salary-card"><div class="salary-value brut" id="brutTotal">0,00 €</div><div>Brut</div></div><div class="salary-card"><div class="salary-value net" id="netTotal">0,00 €</div><div>Net</div></div></div>
                     <div class="card">
                         <div class="card-header"><span class="card-title">Pause déjeuner</span><span class="counter-value" id="lunchTime">00:00:00</span></div>
                         <div class="button-group"><button class="btn btn-lunch" id="startLunchBtn">Démarrer déjeuner</button><button class="btn btn-secondary" id="stopLunchBtn" disabled>Terminer déjeuner</button></div>
@@ -1414,6 +1437,8 @@
                 </div>
             </div>
         `;
+        const dateLabel = document.getElementById('dateLabel');
+        if (dateLabel) dateLabel.innerText = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
         attachMainEvents();
         startTimer();
         updateAllDisplays();
