@@ -1,5 +1,5 @@
 // Service worker TicTime - cache hors-ligne
-const CACHE_NAME = 'tictime-v1';
+const CACHE_NAME = 'tictime-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,6 +32,17 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (NETWORK_ONLY.some((h) => url.hostname === h || url.hostname.endsWith('.' + h))) return;
+  // Pages HTML : réseau d'abord (mises à jour immédiates), cache en secours hors-ligne
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then((resp) => {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
+        return resp;
+      }).catch(() => caches.match(e.request).then((r) => r || caches.match('./index.html')))
+    );
+    return;
+  }
   const cacheable = url.origin === self.location.origin || CDN_HOSTS.includes(url.hostname);
   if (!cacheable) return;
   e.respondWith(

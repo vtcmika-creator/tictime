@@ -1111,7 +1111,7 @@
         // Force update displays after restore
         updateAllDisplays();
         updateButtonsUI();
-        if (timerInterval) clearInterval(timerInterval);
+        // Note : ne PAS arrêter le timer ici — il doit continuer si le travail est en cours
         const stored = localStorage.getItem('workSessions');
         sessions = stored ? JSON.parse(stored) : [];
         sessions = sessions.filter(s => s && s.date && s.workTime);
