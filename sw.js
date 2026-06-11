@@ -1,5 +1,5 @@
 // Service worker TicTime - cache hors-ligne
-const CACHE_NAME = 'tictime-v3';
+const CACHE_NAME = 'tictime-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', (e) => {
   // Pages HTML : réseau d'abord (mises à jour immédiates), cache en secours hors-ligne
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request).then((resp) => {
+      fetch(e.request, { cache: 'no-cache' }).then((resp) => {
         const clone = resp.clone();
         caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
         return resp;
