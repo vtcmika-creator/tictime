@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>TicTime - Suivi de salaire</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <style>
+        /* ---------- Styles globaux ---------- */
+        :root {
+            --bg-page: #F5F7FA;
+            --card-bg: white;
+            --text-primary: #1E2A3A;
+            --text-secondary: #5B6E8C;
+            --accent: #1E4A6F;
+            --border-light: #EDF2F7;
+            --btn-primary-bg: #1E4A6F;
+            --btn-primary-hover: #0f3a56;
+            --btn-lunch-bg: #D97706;
+            --btn-lunch-hover: #b55d04;
+            --btn-secondary-bg: #E2E8F0;
+            --btn-secondary-hover: #cbd5e1;
+            --btn-stop-bg: #B91C1C;
+            --btn-stop-hover: #9b1616;
+            --salary-brut: #B45309;
+            --salary-net: #2F6B47;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+            --shadow-hover: 0 4px 12px rgba(0,0,0,0.1);
+            --transition: all 0.2s;
+        }
+        /* Thème haute lisibilité (contraste élevé) */
+        body.high-contrast {
+            --bg-page: #FFFFFF;
+            --card-bg: #F0F0F0;
+            --text-primary: #000000;
+            --text-secondary: #222222;
+            --accent: #0000AA;
+            --border-light: #CCCCCC;
+            --btn-primary-bg: #0000AA;
+            --btn-primary-hover: #0000DD;
+            --btn-lunch-bg: #AA6600;
+            --btn-lunch-hover: #CC7700;
+            --btn-secondary-bg: #E0E0E0;
+            --btn-secondary-hover: #CCCCCC;
+            --btn-stop-bg: #AA0000;
+            --btn-stop-hover: #CC0000;
+            --salary-brut: #000000;
+            --salary-net: #000000;
+        }
+        /* Thème haute performance (désactive les transitions) */
+        body.high-performance, body.high-performance * {
+            transition: none !important;
+            animation: none !important;
+        }
+        body.dark {
+            --bg-page: #121212;
+            --card-bg: #1E1E2E;
+            --text-primary: #E2E8F0;
+            --text-secondary: #94A3B8;
+            --border-light: #2D2D3A;
+            --btn-secondary-bg: #334155;
+            --btn-secondary-hover: #475569;
+            --btn-primary-bg: #3B82F6;
+            --btn-primary-hover: #2563eb;
+            --btn-lunch-bg: #F59E0B;
+            --btn-lunch-hover: #d97706;
+            --btn-stop-bg: #DC2626;
+            --btn-stop-hover: #b91c1c;
+            --salary-brut: #F59E0B;
+            --salary-net: #10B981;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+            --shadow-hover: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        body.compact .card { padding: 12px; }
+        body.compact .counter-value { font-size: 1.5rem; }
+        body.compact .salary-value { font-size: 1.2rem; }
+        body.compact .btn { padding: 6px 12px; font-size: 0.8rem; }
+        body.compact .main-card { gap: 12px; padding: 16px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg-page); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; transition: background 0.3s, color 0.2s; color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; min-height: 100vh; }
+        .main-card { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
+        .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+        .left-group, .right-group { display: flex; align-items: center; gap: 12px; }
+        .title-container { text-align: center; flex: 1; }
+        .hamburger { background: var(--card-bg); border: none; font-size: 24px; width: 44px; height: 44px; border-radius: 24px; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); box-shadow: var(--shadow-sm); }
+        .hamburger:active { transform: scale(0.96); }
+        .main-title { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.6rem; letter-spacing: -0.5px; background: linear-gradient(135deg, #10B981, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .card { background: var(--card-bg); border-radius: 28px; padding: 20px; box-shadow: var(--shadow-sm); transition: var(--transition); }
+        .card-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
+        .card-title { font-weight: 600; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .counter-value { font-family: monospace; font-size: 2.2rem; font-weight: 700; color: var(--accent); margin: 8px 0; }
+        .real-time { font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: -4px; }
+        .button-group { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+        .btn { padding: 10px 20px; border-radius: 48px; font-size: 0.9rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); background: var(--btn-secondary-bg); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--btn-primary-bg); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover); transform: translateY(-2px); }
+        .btn-lunch { background: var(--btn-lunch-bg); color: white; }
+        .btn-lunch:hover:not(:disabled) { background: var(--btn-lunch-hover); transform: translateY(-2px); }
+        .btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); }
+        .btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-hover); transform: translateY(-2px); }
+        .btn-stop { background: var(--btn-stop-bg); color: white; }
+        .btn-stop:hover:not(:disabled) { background: var(--btn-stop-hover); transform: translateY(-2px); }
+        .salary-row { display: flex; gap: 16px; margin-bottom: 4px; }
+        .salary-card { flex: 1; background: var(--bg-page); border-radius: 24px; padding: 14px; text-align: center; }
+        .salary-value { font-size: 1.8rem; font-weight: 700; }
+        .brut { color: var(--salary-brut); } .net { color: var(--salary-net); }
+        .maj-line { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-light); font-size: 0.85rem; }
+        .prime-line { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 0.9rem; }
+        .drawer { position: fixed; top: 0; left: 0; width: 280px; height: 100%; background: var(--card-bg); transform: translateX(-100%); transition: 0.25s; z-index: 1000; display: flex; flex-direction: column; padding: 24px 20px; }
+        .drawer.open { transform: translateX(0); }
+        .drawer-header { display: flex; justify-content: space-between; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }
+        .close-drawer { background: none; border: none; font-size: 28px; cursor: pointer; }
+        .drawer-content { flex: 1; overflow-y: auto; }
+        .menu-section { margin-bottom: 28px; }
+        .menu-section-title { font-size: 0.7rem; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 12px; letter-spacing: 1px; }
+        .menu-item { padding: 12px 0; font-size: 0.95rem; border-bottom: 1px solid var(--border-light); cursor: pointer; display: flex; align-items: center; gap: 14px; }
+        .menu-item:hover { background: var(--bg-page); padding-left: 8px; border-radius: 16px; }
+        .history-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+        .history-item { background: var(--bg-page); border-radius: 20px; padding: 12px; margin-bottom: 10px; font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
+        .history-item-content { flex: 1; }
+        .delete-session { cursor: pointer; filter: grayscale(1); font-size: 1.2rem; margin-left: 8px; padding: 4px; }
+        .delete-session:hover { filter: grayscale(0); opacity: 0.7; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999; display: none; backdrop-filter: blur(2px); }
+        .overlay.active { display: block; }
+        .modal-info, .modal-confirm, .modal-input { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-bg); border-radius: 32px; padding: 28px; width: 300px; text-align: center; z-index: 1100; display: none; flex-direction: column; gap: 20px; box-shadow: 0 20px 35px rgba(0,0,0,0.2); }
+        .modal-info.active, .modal-confirm.active, .modal-input.active { display: flex; }
+        .modal-info button, .modal-confirm button, .modal-input button { background: var(--btn-primary-bg); color: white; padding: 10px 20px; border-radius: 48px; cursor: pointer; }
+        .stats-charts { display: flex; flex-direction: column; gap: 28px; margin-top: 16px; }
+        .chart-container { background: var(--card-bg); border-radius: 28px; padding: 16px; }
+        canvas { max-height: 220px; width: 100%; }
+        .time-input-group { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+        .time-input-group input, select { padding: 10px; border-radius: 20px; border: 1px solid var(--border-light); background: var(--card-bg); color: var(--text-primary); font-size: 0.9rem; }
+        .switch { position: relative; display: inline-block; width: 52px; height: 28px; vertical-align: middle; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.2s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: 0.2s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .help-icon { filter: grayscale(1); cursor: pointer; font-size: 1rem; margin-left: 6px; display: inline-block; }
+        .welcome-group { margin-bottom: 20px; }
+        .welcome-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); }
+        .input-number { width: 100%; padding: 12px; border-radius: 20px; border: 1px solid var(--border-light); background: var(--card-bg); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 1rem; -moz-appearance: textfield; appearance: textfield; }
+        .inline-switch { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+        .mono-icon { filter: grayscale(1); display: inline-block; font-size: 1.2rem; width: 1.4rem; text-align: center; }
+        hr { margin: 16px 0; border-color: var(--border-light); }
+        .settings-group { margin-bottom: 20px; }
+        .settings-group label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary); }
+        .mode-active { color: #10B981; font-weight: 600; }
+        .prime-custom-name { margin-top: 8px; }
+        .stats-summary { margin-bottom: 16px; text-align: center; font-size: 0.9rem; background: var(--bg-page); border-radius: 24px; padding: 12px; }
+        .today-btn { display: inline-block; margin-top: 8px; cursor: pointer; color: var(--accent); text-decoration: underline; font-size: 0.8rem; }
+        /* Styles pour l'aide en accordéons */
+        .help-section summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--accent);
+            border-left: 3px solid var(--accent);
+            padding-left: 10px;
+            list-style: none;
+        }
+        .help-section summary::-webkit-details-marker {
+            display: none;
+        }
+        .help-section summary::before {
+            content: "▶ ";
+            font-size: 0.8rem;
+            display: inline-block;
+            margin-right: 6px;
+            transition: transform 0.2s;
+        }
+        .help-section[open] summary::before {
+            content: "▼ ";
+        }
+        .help-section {
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 8px;
+        }
+        .help-section p, .help-section ul {
+            margin: 8px 0 12px 0;
+            line-height: 1.5;
+            padding-left: 20px;
+        }
+        .help-section ul {
+            list-style-type: disc;
+        }
+    </style>
+</head>
+<body>
+<div id="appRoot"></div>
+<script>
+    // ---------- VARIABLES GLOBALES ----------
+    let workSeconds = 0, lunchSeconds = 0, shortPauseSeconds = 0;
+    let workRunning = false, lunchRunning = false, shortPauseRunning = false;
+    let lastTimestamp = null, workStartTimestamp = null;
+    let currentDate = new Date().toDateString();
+    let timerInterval = null;
+    let pendingConfirmCallback = null;
+    let pendingInputCallback = null;
+    let sessions = [];
+    let workRules = {
+        tauxBrut: 16.00, tauxNet: 12.50, statut: "Non-cadre",
+        overtimeThreshold: 7, overtimeRate: 0.25,
+        overtimeThreshold2: 8, overtimeRate2: 0.50,
+        weeklyOvertimeEnabled: false,
+        weeklyOvertimeThreshold: 35,
+        nightStart: 21, nightEnd: 6, nightRate: 1.0,
+        sundayEnabled: true, sundayRate: 1.0,
+        holidayEnabled: true, holidayRate: 1.0,
+        roundingRule: "none",
+        statutDetaille: "Employé", customNetCoeff: null,
+        ancienneteEnabled: false, ancienneteType: "percent", ancienneteValue: 1, ancienneteStartDate: "2020-01",
+        primes: [
+            { name: "Panier", enabled: false, period: "daily", amount: 0, customName: "" },
+            { name: "Transport", enabled: false, period: "monthly", amount: 0, customName: "" },
+            { name: "Pénibilité", enabled: false, period: "monthly", amount: 0, customName: "" },
+            { name: "Personnalisée", enabled: false, period: "monthly", amount: 0, customName: "" }
+        ],
+        thirteenthMonth: { enabled: false, type: "once", amount: 0, month: 11 },
+        monthlyContractHours: 151.67,
+        holidaysList: []
+    };
+    let userPrefs = {
+        autoDarkMode: true, darkMode: false,
+        autoNightMode: false,
+        highContrast: false,
+        highPerformance: false,
+        accentColor: "#1E4A6F", compactMode: false
+    };
+    let locked = false;
+    let lockPassword = "0000";
+    let autoSaveInterval = null;
+    let nightModeTimer = null;
+
+    // ---------- FIREBASE (sauvegarde cloud) ----------
+    // Remplacez par la config de votre projet Firebase (Console > Paramètres du projet > Vos applications)
+    const firebaseConfig = {
+        apiKey: "VOTRE_API_KEY",
+        authDomain: "VOTRE_PROJET.firebaseapp.com",
+        projectId: "VOTRE_PROJET",
+        storageBucket: "VOTRE_PROJET.appspot.com",
+        messagingSenderId: "VOTRE_SENDER_ID",
+        appId: "VOTRE_APP_ID"
+    };
+    let fbAuth = null, fbDb = null;
+    const cloudConfigured = (typeof firebase !== 'undefined') && !firebaseConfig.apiKey.startsWith("VOTRE");
+    if (cloudConfigured) {
+        firebase.initializeApp(firebaseConfig);
+        fbAuth = firebase.auth();
+        fbDb = firebase.firestore();
+    }
+    // ---------- CRÉATION UNIQUE DES MODAUX ----------
+    function createModals() {
+        if (!document.getElementById('infoModal')) {
+            const modalDiv = document.createElement('div');
+            modalDiv.innerHTML = `
+                <div class="overlay" id="overlay"></div>
+                <div class="modal-info" id="infoModal"><p id="modalMsg"></p><button id="closeModalBtn">OK</button></div>
+                <div class="modal-confirm" id="confirmModal"><p id="confirmMessage"></p><div style="display:flex; gap:12px; justify-content:center;"><button id="confirmOkBtn">Oui</button><button id="confirmCancelBtn">Non</button></div></div>
+                <div class="modal-input" id="inputModal"><p id="inputLabel"></p><input type="password" id="inputField"><div style="display:flex; gap:12px; justify-content:center;"><button id="inputOkBtn">OK</button><button id="inputCancelBtn">Annuler</button></div></div>
+            `;
+            document.body.appendChild(modalDiv);
+        }
+        attachModalEvents();
+    }
+    // ---------- FONCTIONS MODALES ----------
+    window.closeInfoModal = function() {
+        const modal = document.getElementById('infoModal');
+        if (modal) modal.classList.remove('active');
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('active');
+    };
+    window.closeConfirmModal = function() {
+        const modal = document.getElementById('confirmModal');
+        if (modal) modal.classList.remove('active');
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('active');
+    };
+    window.closeInputModal = function() {
+        const modal = document.getElementById('inputModal');
+        if (modal) modal.classList.remove('active');
+        const overlay = document.getElementById('overlay');
+        if (overlay) overlay.classList.remove('active');
+    };
+    function showInfoModal(msg) {
+        let modal = document.getElementById('infoModal');
+        if (!modal) return;
+        document.getElementById('modalMsg').innerText = msg;
+        modal.classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+    }
+    function customConfirm(msg, cb) {
+        document.getElementById('confirmMessage').innerText = msg;
+        document.getElementById('confirmModal').classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+        pendingConfirmCallback = cb;
+    }
+    function showInputModal(label, cb, def, inputType) {
+        document.getElementById('inputLabel').innerText = label;
+        const field = document.getElementById('inputField');
+        field.type = inputType || 'password';
+        field.value = def || '';
+        document.getElementById('inputModal').classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+        pendingInputCallback = cb;
+    }
+    function attachModalEvents() {
+        const confirmOk = document.getElementById('confirmOkBtn');
+        const confirmCancel = document.getElementById('confirmCancelBtn');
+        const closeModal = document.getElementById('closeModalBtn');
+        const inputOk = document.getElementById('inputOkBtn');
+        const inputCancel = document.getElementById('inputCancelBtn');
+        const overlay = document.getElementById('overlay');
+        if (confirmOk) confirmOk.onclick = () => { window.closeConfirmModal(); if (pendingConfirmCallback) pendingConfirmCallback(true); pendingConfirmCallback = null; };
+        if (confirmCancel) confirmCancel.onclick = () => { window.closeConfirmModal(); if (pendingConfirmCallback) pendingConfirmCallback(false); pendingConfirmCallback = null; };
+        if (closeModal) closeModal.onclick = () => { window.closeInfoModal(); };
+        if (inputOk) inputOk.onclick = () => { const val = document.getElementById('inputField').value; window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(val); pendingInputCallback = null; };
+        if (inputCancel) inputCancel.onclick = () => { window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(null); pendingInputCallback = null; };
+        if (overlay) overlay.onclick = () => { window.closeConfirmModal(); window.closeInputModal(); window.closeInfoModal(); if (pendingConfirmCallback) pendingConfirmCallback(false); if (pendingInputCallback) pendingInputCallback(null); pendingConfirmCallback = pendingInputCallback = null; document.getElementById('drawer')?.classList.remove('open'); };
+    }
+    // ---------- SAUVEGARDE / RESTAURATION AUTOMATIQUE ----------
+    function saveStateToLocal() {
+        const state = {
+            workSeconds, lunchSeconds, shortPauseSeconds,
+            workRunning, lunchRunning, shortPauseRunning,
+            lastTimestamp, workStartTimestamp,
+            currentDate
+        };
+        localStorage.setItem('autoSaveState', JSON.stringify(state));
+    }
+    function restoreAutoSaveState() {
+        const saved = localStorage.getItem('autoSaveState');
+        if (!saved) return false;
+        try {
+            const state = JSON.parse(saved);
+            const today = new Date().toDateString();
+            if (state.currentDate !== today) {
+                localStorage.removeItem('autoSaveState');
+                return false;
+            }
+            workSeconds = state.workSeconds || 0;
+            lunchSeconds = state.lunchSeconds || 0;
+            shortPauseSeconds = state.shortPauseSeconds || 0;
+            workRunning = state.workRunning || false;
+            lunchRunning = state.lunchRunning || false;
+            shortPauseRunning = state.shortPauseRunning || false;
+            lastTimestamp = state.lastTimestamp;
+            workStartTimestamp = state.workStartTimestamp;
+            currentDate = state.currentDate || today;
+            if (workRunning || lunchRunning || shortPauseRunning) {
+                if (timerInterval) clearInterval(timerInterval);
+                startTimer();
+            }
+            // Les mises à jour d'affichage seront faites après le rendu du DOM
+            return true;
+        } catch(e) { return false; }
+    }
+    function startAutoSave() {
+        if (autoSaveInterval) clearInterval(autoSaveInterval);
+        autoSaveInterval = setInterval(() => {
+            saveStateToLocal();
+        }, 60000);
+    }
+    // ---------- MODE NUIT AUTOMATIQUE ----------
+    function applyNightMode() {
+        if (!userPrefs.autoNightMode) return;
+        const now = new Date();
+        const hour = now.getHours();
+        let isNight = false;
+        const start = workRules.nightStart;
+        const end = workRules.nightEnd;
+        if (start < end) {
+            isNight = (hour >= start && hour < end);
+        } else {
+            isNight = (hour >= start || hour < end);
+        }
+        if (isNight) {
+            document.body.classList.add('dark');
+        } else {
+            if (!userPrefs.darkMode) {
+                document.body.classList.remove('dark');
+            } else if (!userPrefs.autoDarkMode) {
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+            }
+        }
+    }
+    function startNightModeWatcher() {
+        if (nightModeTimer) clearInterval(nightModeTimer);
+        nightModeTimer = setInterval(() => {
+            if (userPrefs.autoNightMode) {
+                applyNightMode();
+            }
+        }, 60000);
+    }
+    // ---------- FONCTIONS DE THÈME ----------
+    function applyTheme() {
+        document.body.classList.toggle('compact', userPrefs.compactMode);
+        document.body.classList.toggle('high-contrast', userPrefs.highContrast);
+        document.body.classList.toggle('high-performance', userPrefs.highPerformance);
+        if (userPrefs.autoDarkMode && !userPrefs.autoNightMode) {
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (isDark) document.body.classList.add('dark'); else document.body.classList.remove('dark');
+        } else if (!userPrefs.autoNightMode) {
+            if (userPrefs.darkMode) document.body.classList.add('dark'); else document.body.classList.remove('dark');
+        }
+        if (userPrefs.autoNightMode) {
+            applyNightMode();
+        }
+        document.documentElement.style.setProperty('--accent', userPrefs.accentColor);
+        document.documentElement.style.setProperty('--btn-primary-bg', userPrefs.accentColor);
+        document.documentElement.style.setProperty('--btn-primary-hover', userPrefs.accentColor + 'cc');
+    }
+    // ---------- FONCTIONS UTILITAIRES ----------
+    // Date locale au format AAAA-MM-JJ (évite le décalage UTC de toISOString)
+    function toLocalISO(d) {
+        return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+    }
+    function generateHolidays(year) {
+        const paques = (y) => {
+            const a = y % 19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4;
+            const f = Math.floor((b+8)/25), g = Math.floor((b-f+1)/3);
+            const h = (19*a + b - d - g + 15) % 30;
+            const i = Math.floor(c/4), k = c%4;
+            const l = (32 + 2*e + 2*i - h - k) % 7;
+            const m = Math.floor((a + 11*h + 22*l) / 451);
+            const month = Math.floor((h + l - 7*m + 114) / 31);
+            const day = ((h + l - 7*m + 114) % 31) + 1;
+            return new Date(y, month-1, day);
+        };
+        const lundiPaques = paques(year);
+        const lundiPaquesDate = new Date(year, lundiPaques.getMonth(), lundiPaques.getDate()+1);
+        const ascension = new Date(year, lundiPaques.getMonth(), lundiPaques.getDate()+39);
+        const lundiPentecote = new Date(year, lundiPaques.getMonth(), lundiPaques.getDate()+50);
+        let holidays = [`${year}-01-01`,`${year}-05-01`,`${year}-05-08`,`${year}-07-14`,`${year}-08-15`,`${year}-11-01`,`${year}-11-11`,`${year}-12-25`];
+        holidays.push(toLocalISO(lundiPaquesDate), toLocalISO(ascension), toLocalISO(lundiPentecote));
+        return holidays;
+    }
+    function initDefaultWorkRules() { workRules.holidaysList = generateHolidays(new Date().getFullYear()); }
+    function saveWorkRules() { localStorage.setItem('workRules', JSON.stringify(workRules)); }
+    function loadWorkRules() {
+        const stored = localStorage.getItem('workRules');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                workRules = { ...workRules, ...parsed };
+                if (!workRules.holidaysList) workRules.holidaysList = generateHolidays(new Date().getFullYear());
+                if (!workRules.primes) workRules.primes = [];
+                workRules.primes = workRules.primes.map(p => ({ name: p.name, enabled: p.enabled || false, period: p.period || "monthly", amount: p.amount || 0, customName: p.customName || "" }));
+            } catch(e) { console.error(e); }
+        } else {
+            initDefaultWorkRules();
+        }
+    }
+    function savePrefs() { localStorage.setItem('appPrefs', JSON.stringify(userPrefs)); }
+    function loadPrefs() {
+        const saved = localStorage.getItem('appPrefs');
+        if (saved) { try { const p = JSON.parse(saved); userPrefs = { ...userPrefs, ...p }; } catch(e) {} }
+        applyTheme();
+    }
+    function loadLockPassword() { const saved = localStorage.getItem('lockPassword'); if (saved) lockPassword = saved; }
+    function saveLockPassword(pwd) { lockPassword = pwd; localStorage.setItem('lockPassword', pwd); }
+    function computeYearsSince(dateStr) {
+        if (!dateStr) return 0;
+        const [year, month] = dateStr.split('-').map(Number);
+        const now = new Date();
+        let years = now.getFullYear() - year;
+        if (now.getMonth() + 1 < month) years--;
+        return Math.max(0, years);
+    }
+    // Cumul des secondes travaillées déjà enregistrées cette semaine (depuis lundi)
+    function getWeekPriorSeconds() {
+        const now = new Date();
+        const monday = new Date(now);
+        monday.setHours(0,0,0,0);
+        monday.setDate(monday.getDate() - ((now.getDay() + 6) % 7));
+        let total = 0;
+        for (const s of sessions) {
+            const parts = s.date.split('/');
+            if (parts.length !== 3) continue;
+            const d = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
+            if (d >= monday && d <= now) {
+                const t = s.workTime.split(':');
+                total += (parseInt(t[0])||0)*3600 + (parseInt(t[1])||0)*60 + (parseInt(t[2])||0);
+            }
+        }
+        return total;
+    }
+    function computeMajorations(totalWorkSecRound, startTime) {
+        if (totalWorkSecRound === 0 || !startTime) return { majNuit:0, majDimanche:0, majFerie:0, majHS:0, brutBase:0, netBase:0 };
+        const baseBrutSec = workRules.tauxBrut / 3600;
+        const baseNetSec = workRules.tauxNet / 3600;
+        let majNuit=0, majDimanche=0, majFerie=0, majHS=0;
+        const realSec = workSeconds;
+        let weekPriorSeconds = 0;
+        if (workRules.weeklyOvertimeEnabled) {
+            weekPriorSeconds = getWeekPriorSeconds();
+        }
+        for (let i=0; i<realSec; i++) {
+            const dateSec = new Date(startTime + i*1000);
+            const heures = dateSec.getHours();
+            let isNuit = (heures >= workRules.nightStart || heures < workRules.nightEnd);
+            let isDimanche = (workRules.sundayEnabled && dateSec.getDay() === 0);
+            let isFerie = (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(dateSec)));
+            let isHS = false;
+            let overtimeRate = 0;
+            if (workRules.weeklyOvertimeEnabled) {
+                // Seule la portion au-delà du seuil hebdo est majorée (cumul semaine + seconde courante)
+                if (weekPriorSeconds + i >= workRules.weeklyOvertimeThreshold * 3600) {
+                    isHS = true;
+                    overtimeRate = workRules.overtimeRate;
+                }
+            } else {
+                // Seules les secondes au-delà du seuil journalier sont majorées
+                if (i >= workRules.overtimeThreshold * 3600) {
+                    isHS = true;
+                    overtimeRate = workRules.overtimeRate;
+                    if (workRules.overtimeThreshold2 && i >= workRules.overtimeThreshold2 * 3600) {
+                        overtimeRate = workRules.overtimeRate2;
+                    }
+                }
+            }
+            if (isNuit) majNuit += baseBrutSec * workRules.nightRate;
+            if (isDimanche) majDimanche += baseBrutSec * workRules.sundayRate;
+            if (isFerie) majFerie += baseBrutSec * workRules.holidayRate;
+            if (isHS) majHS += baseBrutSec * overtimeRate;
+        }
+        const brutBase = totalWorkSecRound * baseBrutSec;
+        const netBase = totalWorkSecRound * baseNetSec;
+        return { majNuit, majDimanche, majFerie, majHS, brutBase, netBase };
+    }
+    function computeTotalSalary(totalWorkSecRound, startTime) {
+        const maj = computeMajorations(totalWorkSecRound, startTime);
+        let brutTotal = maj.brutBase + maj.majNuit + maj.majDimanche + maj.majFerie + maj.majHS;
+        let netTotal = maj.netBase + (maj.majNuit + maj.majDimanche + maj.majFerie + maj.majHS) * (workRules.tauxNet / workRules.tauxBrut);
+        let ancienneteBrut = 0, ancienneteNet = 0;
+        if (workRules.ancienneteEnabled) {
+            if (workRules.ancienneteType === "percent") {
+                const years = computeYearsSince(workRules.ancienneteStartDate);
+                const pct = workRules.ancienneteValue * years;
+                ancienneteBrut = maj.brutBase * (pct / 100);
+                ancienneteNet = maj.netBase * (pct / 100);
+            } else if (workRules.ancienneteType === "fixed" && workRules.ancienneteValue > 0) {
+                // Montant fixe mensuel proratisé sur les heures contractuelles
+                const tauxHoraire = workRules.ancienneteValue / (workRules.monthlyContractHours || 151.67);
+                ancienneteBrut = tauxHoraire * (totalWorkSecRound / 3600);
+                ancienneteNet = ancienneteBrut * (workRules.tauxNet / workRules.tauxBrut);
+            }
+            brutTotal += ancienneteBrut;
+            netTotal += ancienneteNet;
+        }
+        return { brut: brutTotal, net: netTotal, majNuit: maj.majNuit, majDimanche: maj.majDimanche, majFerie: maj.majFerie, majHS: maj.majHS, ancienneteBrut, ancienneteNet };
+    }
+    function getDailyPrimes() {
+        return workRules.primes.filter(p => p.enabled && p.period === "daily" && p.amount > 0).map(p => ({ name: p.customName || p.name, amount: p.amount }));
+    }
+    // ---------- PAGE DE CONFIGURATION ----------
+    function showConfigPage(isWelcome = true) {
+        const root = document.getElementById('appRoot');
+        const title = isWelcome ? "Configuration initiale" : "Mon profil";
+        root.innerHTML = `
+            <div class="app" style="justify-content:center;">
+                <div class="main-card" style="padding:20px; max-width:100%; margin:0; justify-content:center;">
+                    <div class="card" style="width:100%;">
+                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title" style="font-size:2rem;">TicTime</div></div>
+                        <div class="card-title" style="font-size:1.4rem; text-align:center; margin-top:8px; margin-bottom:24px;">${title}</div>
+                        <div class="inline-switch" style="margin-bottom:20px;">
+                            <span id="modeSimpleLabel">Mode simple</span>
+                            <label class="switch"><input type="checkbox" id="preciseModeToggle"><span class="slider"></span></label>
+                            <span id="modePrecisLabel">Mode précis</span>
+                        </div>
+                        <div id="simpleModeFields">
+                            <div class="welcome-group"><label>Taux horaire brut (€) <span class="help-icon" data-help="Fiche de paie : ligne 'Salaire de base'.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${workRules.tauxBrut}"></div>
+                            <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement ou modifiable manuellement.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${workRules.tauxNet}"></div>
+                            <div class="welcome-group"><label>Statut <span class="help-icon" data-help="Contrat de travail ou fiche de paie.">ℹ️</span></label><select id="wStatut" class="time-input-group select"><option value="Non-cadre" ${workRules.statut==="Non-cadre"?"selected":""}>Non-cadre</option><option value="Cadre" ${workRules.statut==="Cadre"?"selected":""}>Cadre</option></select></div>
+                            <div class="welcome-group"><label>Seuil heures supplémentaires (heures/jour) <span class="help-icon" data-help="Convention collective ou contrat.">ℹ️</span></label><input type="text" id="wOvertimeThreshold" class="input-number" value="${workRules.overtimeThreshold}"></div>
+                            <div class="welcome-group"><label>Majoration heures supplémentaires (%)</label><input type="text" id="wOvertimeRate" class="input-number" value="${workRules.overtimeRate*100}"></div>
+                            <div class="welcome-group"><label>Plage nuit (de – à)</label><div style="display:flex; gap:8px;"><input type="text" id="wNightStart" class="input-number" value="${workRules.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${workRules.nightEnd}" style="flex:1;"> h</div></div>
+                            <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${workRules.nightRate*100}"></div>
+                            <div class="inline-switch"><span>Dimanche travaillé</span><label class="switch"><input type="checkbox" id="wSundayEnabled" ${workRules.sundayEnabled?"checked":""}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Majoration dimanche (%)</label><input type="text" id="wSundayRate" class="input-number" value="${workRules.sundayRate*100}"></div>
+                            <div class="inline-switch"><span>Jours fériés travaillés</span><label class="switch"><input type="checkbox" id="wHolidayEnabled" ${workRules.holidayEnabled?"checked":""}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Majoration fériés (%)</label><input type="text" id="wHolidayRate" class="input-number" value="${workRules.holidayRate*100}"></div>
+                            <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${workRules.roundingRule==='none'?"selected":""}>Aucun</option><option value="minute" ${workRules.roundingRule==='minute'?"selected":""}>Minute</option><option value="5min" ${workRules.roundingRule==='5min'?"selected":""}>5 minutes</option><option value="10min" ${workRules.roundingRule==='10min'?"selected":""}>10 minutes</option><option value="15min" ${workRules.roundingRule==='15min'?"selected":""}>15 minutes</option></select></div>
+                        </div>
+                        <div id="preciseModeFields" style="display:none;">
+                            <hr><div class="card-title">Statut et coefficient</div>
+                            <div class="welcome-group"><label>Statut détaillé</label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${workRules.statutDetaille==="Ouvrier"?"selected":""}>Ouvrier</option><option value="Employé" ${workRules.statutDetaille==="Employé"?"selected":""}>Employé</option><option value="ETAM" ${workRules.statutDetaille==="ETAM"?"selected":""}>ETAM</option><option value="Cadre" ${workRules.statutDetaille==="Cadre"?"selected":""}>Cadre</option></select></div>
+                            <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel)</label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex: 0.78" value="${workRules.customNetCoeff||''}"></div>
+                            <hr><div class="card-title">Heures supplémentaires avancées <span class="help-icon" data-help="Activez le seuil hebdomadaire pour dépasser un nombre d'heures par semaine, ou définissez un second seuil journalier (ex: 50% après 8h).">ℹ️</span></div>
+                            <div class="inline-switch"><span>Utiliser seuil hebdomadaire</span><label class="switch"><input type="checkbox" id="wWeeklyOvertimeEnabled" ${workRules.weeklyOvertimeEnabled?"checked":""}><span class="slider"></span></label></div>
+                            <div id="weeklyFields" style="display:${workRules.weeklyOvertimeEnabled?'block':'none'}">
+                                <div class="welcome-group"><label>Seuil hebdomadaire (heures)</label><input type="text" id="wWeeklyOvertimeThreshold" class="input-number" value="${workRules.weeklyOvertimeThreshold}"></div>
+                            </div>
+                            <div class="welcome-group"><label>Second seuil HS (heures/jour, optionnel)</label><input type="text" id="wOvertimeThreshold2" class="input-number" placeholder="ex: 8" value="${workRules.overtimeThreshold2||''}"></div>
+                            <div class="welcome-group"><label>Majoration second seuil (%)</label><input type="text" id="wOvertimeRate2" class="input-number" placeholder="ex: 50" value="${workRules.overtimeRate2?workRules.overtimeRate2*100:''}"></div>
+                            <hr><div class="card-title">Prime d'ancienneté</div>
+                            <div class="inline-switch"><span>Activer prime d'ancienneté</span><label class="switch"><input type="checkbox" id="wAncienneteEnabled" ${workRules.ancienneteEnabled?"checked":""}><span class="slider"></span></label></div>
+                            <div id="ancienneteFields" style="display:${workRules.ancienneteEnabled?'block':'none'}">
+                                <div class="welcome-group"><label>Type</label><select id="wAncienneteType" class="time-input-group select"><option value="percent" ${workRules.ancienneteType==="percent"?"selected":""}>Pourcentage par année</option><option value="fixed" ${workRules.ancienneteType==="fixed"?"selected":""}>Montant fixe mensuel (€)</option></select></div>
+                                <div class="welcome-group"><label>Valeur</label><input type="text" id="wAncienneteValue" class="input-number" value="${workRules.ancienneteValue}"></div>
+                                <div class="welcome-group"><label>Date d'entrée (année-mois)</label><input type="month" id="wAncienneteStartDate" value="${workRules.ancienneteStartDate||'2020-01'}"></div>
+                            </div>
+                            <hr><div class="card-title">Primes fixes</div><div id="primesContainer"></div>
+                            <hr><div class="card-title">13e mois</div>
+                            <div class="inline-switch"><span>Activer 13e mois</span><label class="switch"><input type="checkbox" id="wThirteenthEnabled" ${workRules.thirteenthMonth.enabled?"checked":""}><span class="slider"></span></label></div>
+                            <div id="thirteenthFields" style="display:${workRules.thirteenthMonth.enabled?'block':'none'}">
+                                <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${workRules.thirteenthMonth.type==="once"?"selected":""}>Versé en une fois</option><option value="monthly" ${workRules.thirteenthMonth.type==="monthly"?"selected":""}>Mensualisé</option></select></div>
+                                <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" placeholder="Montant" value="${workRules.thirteenthMonth.amount !== 0 ? workRules.thirteenthMonth.amount : ''}"></div>
+                                <div id="thirteenthMonthDiv" style="display:${workRules.thirteenthMonth.type==='once'?'block':'none'}"><div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11" ${workRules.thirteenthMonth.month===11?"selected":""}>Décembre</option></select></div></div>
+                            </div>
+                            <hr><div class="welcome-group"><label>Heures mensuelles contractuelles (pour primes journalières) <span class="help-icon" data-help="Nombre d'heures travaillées par mois (ex: 151,67).">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${workRules.monthlyContractHours}"></div>
+                        </div>
+                        <button class="btn btn-primary" id="saveConfigBtn" style="margin-top:24px; display:block; margin-left:auto; margin-right:auto;">${isWelcome ? "Ouvrir l'application" : "Enregistrer"}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        // Mode simple/précis
+        const preciseToggle = document.getElementById('preciseModeToggle');
+        const simpleLabel = document.getElementById('modeSimpleLabel');
+        const preciseLabel = document.getElementById('modePrecisLabel');
+        function updateModeColor() {
+            if (preciseToggle.checked) {
+                simpleLabel.classList.remove('mode-active');
+                preciseLabel.classList.add('mode-active');
+            } else {
+                simpleLabel.classList.add('mode-active');
+                preciseLabel.classList.remove('mode-active');
+            }
+        }
+        preciseToggle.addEventListener('change', updateModeColor);
+        updateModeColor();
+        const simpleDiv = document.getElementById('simpleModeFields');
+        const preciseDiv = document.getElementById('preciseModeFields');
+        preciseToggle.addEventListener('change', () => {
+            if (preciseToggle.checked) { simpleDiv.style.display = 'none'; preciseDiv.style.display = 'block'; }
+            else { simpleDiv.style.display = 'block'; preciseDiv.style.display = 'none'; }
+            updateModeColor();
+        });
+        // Ouvrir en mode précis si des options précises sont déjà actives
+        const hasPreciseConfig = !isWelcome && (
+            workRules.weeklyOvertimeEnabled || workRules.ancienneteEnabled ||
+            workRules.thirteenthMonth.enabled || workRules.customNetCoeff !== null ||
+            workRules.primes.some(p => p.enabled)
+        );
+        preciseToggle.checked = hasPreciseConfig;
+        simpleDiv.style.display = hasPreciseConfig ? 'none' : 'block';
+        preciseDiv.style.display = hasPreciseConfig ? 'block' : 'none';
+        updateModeColor();
+        // Primes container
+        const primesContainer = document.getElementById('primesContainer');
+        function renderPrimes() {
+            primesContainer.innerHTML = '';
+            workRules.primes.forEach((prime, idx) => {
+                const div = document.createElement('div');
+                div.className = 'welcome-group';
+                div.innerHTML = `
+                    <div class="inline-switch"><span>${prime.name}</span><label class="switch"><input type="checkbox" class="prime-enabled" data-idx="${idx}" ${prime.enabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                    <div class="prime-details" style="display:${prime.enabled ? 'block' : 'none'}">
+                        <div class="inline-switch"><span>Périodicité</span><select class="prime-period" data-idx="${idx}"><option value="daily" ${prime.period === 'daily' ? 'selected' : ''}>Journalière</option><option value="monthly" ${prime.period === 'monthly' ? 'selected' : ''}>Mensuelle</option></select></div>
+                        <div><input type="text" class="prime-amount input-number" data-idx="${idx}" placeholder="Montant" value="${prime.amount !== 0 ? prime.amount : ''}"></div>
+                        ${prime.name === 'Personnalisée' ? `<div><input type="text" class="prime-custom-name input-number" data-idx="${idx}" placeholder="Nom de la prime" value="${prime.customName || ''}" style="margin-top:8px;"></div>` : ''}
+                    </div>
+                `;
+                primesContainer.appendChild(div);
+            });
+        }
+        renderPrimes();
+        primesContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('prime-enabled')) {
+                const idx = e.target.dataset.idx;
+                workRules.primes[idx].enabled = e.target.checked;
+                renderPrimes();
+            }
+        });
+        primesContainer.addEventListener('input', (e) => {
+            if (e.target.classList.contains('prime-amount')) {
+                const idx = e.target.dataset.idx;
+                workRules.primes[idx].amount = parseFloat(e.target.value) || 0;
+            }
+            if (e.target.classList.contains('prime-custom-name')) {
+                const idx = e.target.dataset.idx;
+                workRules.primes[idx].customName = e.target.value;
+            }
+        });
+        primesContainer.addEventListener('change', (e) => {
+            if (e.target.classList.contains('prime-period')) {
+                const idx = e.target.dataset.idx;
+                workRules.primes[idx].period = e.target.value;
+                renderPrimes();
+            }
+        });
+        // Gestion des champs conditionnels
+        const weeklyCheck = document.getElementById('wWeeklyOvertimeEnabled');
+        const weeklyDiv = document.getElementById('weeklyFields');
+        if (weeklyCheck) {
+            weeklyCheck.addEventListener('change', () => {
+                weeklyDiv.style.display = weeklyCheck.checked ? 'block' : 'none';
+            });
+        }
+        const ancienneteCheck = document.getElementById('wAncienneteEnabled');
+        const ancienneteDiv = document.getElementById('ancienneteFields');
+        ancienneteCheck.addEventListener('change', () => ancienneteDiv.style.display = ancienneteCheck.checked ? 'block' : 'none');
+        const thirteenthCheck = document.getElementById('wThirteenthEnabled');
+        const thirteenthDiv = document.getElementById('thirteenthFields');
+        const thirteenthType = document.getElementById('wThirteenthType');
+        const thirteenthMonthDiv = document.getElementById('thirteenthMonthDiv');
+        thirteenthCheck.addEventListener('change', () => thirteenthDiv.style.display = thirteenthCheck.checked ? 'block' : 'none');
+        thirteenthType.addEventListener('change', () => thirteenthMonthDiv.style.display = thirteenthType.value === 'once' ? 'block' : 'none');
+        // Calcul auto brut/net (corrigé)
+        const tauxBrutInput = document.getElementById('wTauxBrut');
+        const tauxNetInput = document.getElementById('wTauxNet');
+        const statutSelect = document.getElementById('wStatut');
+        const customCoeffInput = document.getElementById('wCustomNetCoeff');
+        function updateNetFromBrut() {
+            let brut = parseFloat(tauxBrutInput.value.replace(',', '.'));
+            if (isNaN(brut)) brut = 0;
+            // Lire le statut actuel dans le select
+            let statut = statutSelect.value;
+            let coeff = statut === "Cadre" ? 0.75 : 0.78;
+            if (customCoeffInput && customCoeffInput.value) {
+                let c = parseFloat(customCoeffInput.value.replace(',', '.'));
+                if (!isNaN(c)) coeff = c;
+            }
+            let net = brut * coeff;
+            tauxNetInput.value = net.toFixed(2);
+        }
+        let autoNet = true;
+        tauxBrutInput.addEventListener('input', () => { if (autoNet) updateNetFromBrut(); });
+        tauxNetInput.addEventListener('input', () => {
+            autoNet = false;
+            let net = parseFloat(tauxNetInput.value.replace(',', '.'));
+            let statut = statutSelect.value;
+            let coeff = statut === "Cadre" ? 0.75 : 0.78;
+            if (customCoeffInput && customCoeffInput.value) {
+                let c = parseFloat(customCoeffInput.value.replace(',', '.'));
+                if (!isNaN(c)) coeff = c;
+            }
+            let brut = isNaN(net) ? 0 : net / coeff;
+            tauxBrutInput.value = brut.toFixed(2);
+            autoNet = true;
+        });
+        statutSelect.addEventListener('change', () => { if (autoNet) updateNetFromBrut(); });
+        if (customCoeffInput) customCoeffInput.addEventListener('input', () => { if (autoNet) updateNetFromBrut(); });
+        // Pas d'appel initial : ne pas écraser un taux net saisi manuellement
+        // Aide contextuelle
+        document.querySelectorAll('.help-icon').forEach(icon => {
+            icon.addEventListener('click', (e) => { showInfoModal(icon.getAttribute('data-help')); e.stopPropagation(); });
+        });
+        // Sauvegarde
+        document.getElementById('saveConfigBtn').addEventListener('click', () => {
+            const brut = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
+            const net = parseFloat(document.getElementById('wTauxNet').value.replace(',', '.'));
+            if (isNaN(brut) || brut <= 0) { showInfoModal("Taux horaire brut invalide."); return; }
+            if (isNaN(net) || net <= 0) { showInfoModal("Taux horaire net invalide."); return; }
+            workRules.tauxBrut = brut; workRules.tauxNet = net;
+            workRules.statut = document.getElementById('wStatut').value;
+            workRules.overtimeThreshold = parseFloat(document.getElementById('wOvertimeThreshold').value);
+            workRules.overtimeRate = parseFloat(document.getElementById('wOvertimeRate').value) / 100;
+            workRules.nightStart = parseInt(document.getElementById('wNightStart').value);
+            workRules.nightEnd = parseInt(document.getElementById('wNightEnd').value);
+            workRules.nightRate = parseFloat(document.getElementById('wNightRate').value) / 100;
+            workRules.sundayEnabled = document.getElementById('wSundayEnabled').checked;
+            workRules.sundayRate = parseFloat(document.getElementById('wSundayRate').value) / 100;
+            workRules.holidayEnabled = document.getElementById('wHolidayEnabled').checked;
+            workRules.holidayRate = parseFloat(document.getElementById('wHolidayRate').value) / 100;
+            workRules.roundingRule = document.getElementById('wRoundingRule').value;
+            if (preciseToggle.checked) {
+                workRules.statutDetaille = document.getElementById('wStatutDetaille').value;
+                workRules.customNetCoeff = customCoeffInput.value ? parseFloat(customCoeffInput.value.replace(',', '.')) : null;
+                workRules.weeklyOvertimeEnabled = weeklyCheck.checked;
+                if (workRules.weeklyOvertimeEnabled) {
+                    workRules.weeklyOvertimeThreshold = parseFloat(document.getElementById('wWeeklyOvertimeThreshold').value);
+                }
+                const thresh2 = document.getElementById('wOvertimeThreshold2').value;
+                workRules.overtimeThreshold2 = thresh2 ? parseFloat(thresh2) : null;
+                const rate2 = document.getElementById('wOvertimeRate2').value;
+                workRules.overtimeRate2 = rate2 ? parseFloat(rate2)/100 : null;
+                workRules.ancienneteEnabled = ancienneteCheck.checked;
+                if (workRules.ancienneteEnabled) {
+                    workRules.ancienneteType = document.getElementById('wAncienneteType').value;
+                    workRules.ancienneteValue = parseFloat(document.getElementById('wAncienneteValue').value);
+                    workRules.ancienneteStartDate = document.getElementById('wAncienneteStartDate').value;
+                }
+                workRules.primes = workRules.primes.map((p, idx) => {
+                    const enabled = document.querySelector(`.prime-enabled[data-idx="${idx}"]`)?.checked || false;
+                    const period = document.querySelector(`.prime-period[data-idx="${idx}"]`)?.value || p.period;
+                    let amount = parseFloat(document.querySelector(`.prime-amount[data-idx="${idx}"]`)?.value) || 0;
+                    const customName = document.querySelector(`.prime-custom-name[data-idx="${idx}"]`)?.value || '';
+                    if (enabled && amount === 0) {
+                        showInfoModal(`La prime "${p.name}" a été désactivée car aucun montant n'a été saisi.`);
+                        return { ...p, enabled: false, period, amount, customName };
+                    }
+                    return { ...p, enabled, period, amount, customName };
+                });
+                workRules.thirteenthMonth.enabled = thirteenthCheck.checked;
+                if (workRules.thirteenthMonth.enabled) {
+                    workRules.thirteenthMonth.type = thirteenthType.value;
+                    workRules.thirteenthMonth.amount = parseFloat(document.getElementById('wThirteenthAmount').value) || 0;
+                    if (workRules.thirteenthMonth.type === 'once') workRules.thirteenthMonth.month = parseInt(document.getElementById('wThirteenthMonth').value);
+                }
+                workRules.monthlyContractHours = parseFloat(document.getElementById('wMonthlyContractHours').value) || 151.67;
+            }
+            // En mode simple, les réglages précis existants sont conservés (pas de réinitialisation silencieuse)
+            workRules.holidaysList = generateHolidays(new Date().getFullYear());
+            saveWorkRules();
+            if (isWelcome) {
+                userPrefs.accentColor = "#1E4A6F";
+                userPrefs.autoDarkMode = true;
+                userPrefs.compactMode = false;
+                savePrefs();
+                applyTheme();
+                loadMainApp();
+            } else {
+                loadMainApp();
+            }
+        });
+    }
+    // ---------- PAGE RÉGLAGES ----------
+    function showSettingsPage() {
+        const root = document.getElementById('appRoot');
+        root.innerHTML = `
+            <div class="app" style="justify-content:center;">
+                <div class="main-card" style="padding:20px; max-width:100%; margin:0; justify-content:center;">
+                    <div class="card" style="width:100%;">
+                        <div style="text-align:center; margin-bottom:16px;"><div class="main-title" style="font-size:2rem;">TicTime</div></div>
+                        <div class="card-title" style="font-size:1.4rem; text-align:center; margin-bottom:24px;">Réglages</div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Mode sombre</label><select id="darkModeSelect" class="time-input-group select"><option value="auto" ${userPrefs.autoDarkMode?'selected':''}>Automatique (système)</option><option value="light" ${!userPrefs.autoDarkMode && !userPrefs.darkMode?'selected':''}>Clair</option><option value="dark" ${!userPrefs.autoDarkMode && userPrefs.darkMode?'selected':''}>Sombre</option></select></div>
+                        <div class="inline-switch" style="margin-bottom:20px;"><span>Mode nuit automatique (selon plage horaire)</span><label class="switch"><input type="checkbox" id="autoNightModeToggle" ${userPrefs.autoNightMode?'checked':''}><span class="slider"></span></label></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur principale</label><input type="color" id="accentColorPicker" value="${userPrefs.accentColor}" style="height:44px;"></div>
+                        <div class="inline-switch" style="margin-bottom:20px;"><span>Affichage compact</span><label class="switch"><input type="checkbox" id="compactModeToggle" ${userPrefs.compactMode?'checked':''}><span class="slider"></span></label></div>
+                        <div class="inline-switch" style="margin-bottom:20px;"><span>Haute lisibilité (contraste élevé)</span><label class="switch"><input type="checkbox" id="highContrastToggle" ${userPrefs.highContrast?'checked':''}><span class="slider"></span></label></div>
+                        <div class="inline-switch" style="margin-bottom:20px;"><span>Haute performance (désactiver animations)</span><label class="switch"><input type="checkbox" id="highPerfToggle" ${userPrefs.highPerformance?'checked':''}><span class="slider"></span></label></div>
+                        <hr>
+                        <div class="card-title">Changer le mot de passe de verrouillage</div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Mot de passe actuel</label><input type="password" id="currentPwd" class="input-number"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Nouveau mot de passe</label><input type="password" id="newPwd" class="input-number"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Confirmer le nouveau mot de passe</label><input type="password" id="confirmPwd" class="input-number"></div>
+                        <button class="btn btn-primary" id="saveSettingsBtn">Enregistrer</button>
+                        <button class="btn btn-secondary" id="backToAppBtn" style="margin-top:12px;">Retour à l'application</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+            const darkMode = document.getElementById('darkModeSelect').value;
+            userPrefs.autoDarkMode = (darkMode === 'auto');
+            userPrefs.darkMode = (darkMode === 'dark');
+            userPrefs.autoNightMode = document.getElementById('autoNightModeToggle').checked;
+            userPrefs.accentColor = document.getElementById('accentColorPicker').value;
+            userPrefs.compactMode = document.getElementById('compactModeToggle').checked;
+            userPrefs.highContrast = document.getElementById('highContrastToggle').checked;
+            userPrefs.highPerformance = document.getElementById('highPerfToggle').checked;
+            savePrefs();
+            applyTheme();
+            const newPwd = document.getElementById('newPwd').value;
+            if (newPwd) {
+                const current = document.getElementById('currentPwd').value;
+                const confirm = document.getElementById('confirmPwd').value;
+                if (current !== lockPassword) {
+                    showInfoModal("Mot de passe actuel incorrect.");
+                    return;
+                }
+                if (newPwd === confirm) {
+                    saveLockPassword(newPwd);
+                    showInfoModal("Mot de passe modifié.");
+                    document.getElementById('currentPwd').value = '';
+                    document.getElementById('newPwd').value = '';
+                    document.getElementById('confirmPwd').value = '';
+                } else {
+                    showInfoModal("Les nouveaux mots de passe ne correspondent pas.");
+                    return;
+                }
+            }
+            showInfoModal("Préférences enregistrées.");
+        });
+        document.getElementById('backToAppBtn').addEventListener('click', () => loadMainApp());
+    }
+    // ---------- PAGE CLOUD (FIREBASE) ----------
+    function showCloudPage() {
+        const mainDiv = document.querySelector('.main-card');
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="hamburger" id="backCloudBtn">←</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Cloud</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Sauvegarde cloud (Firebase)</div>
+                <p id="cloudStatus" style="margin-bottom:16px; font-size:0.9rem; color:var(--text-secondary);">Vérification...</p>
+                <div class="button-group" style="flex-direction:column;">
+                    <button class="btn btn-primary" id="cloudSignInBtn" style="display:none;">Se connecter avec Google</button>
+                    <button class="btn btn-primary" id="cloudSaveBtn" style="display:none;">Sauvegarder vers le cloud</button>
+                    <button class="btn btn-secondary" id="cloudRestoreBtn" style="display:none;">Restaurer depuis le cloud</button>
+                    <button class="btn btn-secondary" id="cloudSignOutBtn" style="display:none;">Se déconnecter</button>
+                </div>
+                <p style="margin-top:16px; font-size:0.75rem; color:var(--text-secondary);">La sauvegarde inclut l'historique des sessions et votre profil. La restauration fusionne les sessions (sans doublons) et remplace le profil.</p>
+            </div>
+        `;
+        document.getElementById('backCloudBtn').onclick = () => loadMainApp();
+        const statusEl = document.getElementById('cloudStatus');
+        const signInBtn = document.getElementById('cloudSignInBtn');
+        const saveBtn = document.getElementById('cloudSaveBtn');
+        const restoreBtn = document.getElementById('cloudRestoreBtn');
+        const signOutBtn = document.getElementById('cloudSignOutBtn');
+        function updateCloudUI() {
+            const user = fbAuth.currentUser;
+            if (user) {
+                statusEl.innerText = `Connecté : ${user.email || user.displayName || user.uid}`;
+                signInBtn.style.display = 'none';
+                saveBtn.style.display = 'inline-block';
+                restoreBtn.style.display = 'inline-block';
+                signOutBtn.style.display = 'inline-block';
+            } else {
+                statusEl.innerText = "Non connecté. Connectez-vous pour synchroniser vos données entre appareils.";
+                signInBtn.style.display = 'inline-block';
+                saveBtn.style.display = 'none';
+                restoreBtn.style.display = 'none';
+                signOutBtn.style.display = 'none';
+            }
+        }
+        fbAuth.onAuthStateChanged(() => { if (document.getElementById('cloudStatus')) updateCloudUI(); });
+        updateCloudUI();
+        signInBtn.onclick = () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            fbAuth.signInWithPopup(provider)
+                .then(() => updateCloudUI())
+                .catch(err => showInfoModal("Connexion échouée : " + err.message));
+        };
+        signOutBtn.onclick = () => { fbAuth.signOut().then(() => updateCloudUI()); };
+        saveBtn.onclick = () => {
+            const user = fbAuth.currentUser;
+            if (!user) return;
+            saveBtn.disabled = true;
+            fbDb.collection('users').doc(user.uid).set({
+                sessions: sessions,
+                workRules: workRules,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => showInfoModal("Données sauvegardées dans le cloud."))
+              .catch(err => showInfoModal("Erreur de sauvegarde : " + err.message))
+              .finally(() => { saveBtn.disabled = false; });
+        };
+        restoreBtn.onclick = () => {
+            const user = fbAuth.currentUser;
+            if (!user) return;
+            customConfirm("Restaurer depuis le cloud ? Les sessions seront fusionnées et le profil remplacé.", (ok) => {
+                if (!ok) return;
+                restoreBtn.disabled = true;
+                fbDb.collection('users').doc(user.uid).get().then(doc => {
+                    if (!doc.exists) { showInfoModal("Aucune sauvegarde cloud trouvée."); return; }
+                    const data = doc.data();
+                    let added = 0;
+                    if (Array.isArray(data.sessions)) {
+                        for (const s of data.sessions) {
+                            if (!s || !s.date || !s.workTime) continue;
+                            const exists = sessions.some(ex => ex.date === s.date && ex.timeOfDay === s.timeOfDay);
+                            if (!exists) { sessions.push(s); added++; }
+                        }
+                        sessions.sort((a,b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-')));
+                        if (sessions.length > 50) sessions = sessions.slice(0,50);
+                        localStorage.setItem('workSessions', JSON.stringify(sessions));
+                    }
+                    if (data.workRules) {
+                        workRules = { ...workRules, ...data.workRules };
+                        if (!workRules.holidaysList || !workRules.holidaysList.length) workRules.holidaysList = generateHolidays(new Date().getFullYear());
+                        saveWorkRules();
+                    }
+                    showInfoModal(`Restauration terminée : ${added} session(s) ajoutée(s), profil mis à jour.`);
+                }).catch(err => showInfoModal("Erreur de restauration : " + err.message))
+                  .finally(() => { restoreBtn.disabled = false; });
+            });
+        };
+    }
+    // ---------- IMPORT JSON ET SUPPRESSION DE SESSION ----------
+    function importJSON() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const text = await file.text();
+            try {
+                const imported = JSON.parse(text);
+                if (!Array.isArray(imported)) throw new Error("Format invalide : attend un tableau");
+                let added = 0;
+                for (const s of imported) {
+                    if (!s.date || !s.workTime) continue;
+                    const exists = sessions.some(ex => ex.date === s.date && ex.timeOfDay === s.timeOfDay);
+                    if (!exists) {
+                        sessions.push(s);
+                        added++;
+                    }
+                }
+                if (added > 0) {
+                    sessions.sort((a,b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-')));
+                    if (sessions.length > 50) sessions = sessions.slice(0,50);
+                    localStorage.setItem('workSessions', JSON.stringify(sessions));
+                    renderHistory();
+                    showInfoModal(`${added} session(s) importée(s).`);
+                } else {
+                    showInfoModal("Aucune nouvelle session importée (doublons).");
+                }
+            } catch(err) {
+                showInfoModal("Erreur : fichier JSON invalide.");
+            }
+        };
+        input.click();
+    }
+    function deleteSession(index) {
+        customConfirm("Supprimer cette session ?", (ok) => {
+            if (ok) {
+                sessions.splice(index, 1);
+                localStorage.setItem('workSessions', JSON.stringify(sessions));
+                renderHistory();
+                showInfoModal("Session supprimée.");
+            }
+        });
+    }
+    // ---------- STATISTIQUES AVANCÉES ----------
+    function showStats() {
+        const mainDiv = document.querySelector('.main-card');
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="hamburger" id="backStatsBtn">←</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Statistiques</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="stats-summary" id="statsSummary">Calcul en cours...</div>
+            <div id="statsContent" class="stats-charts">
+                <div class="chart-container"><canvas id="hoursBarChart"></canvas></div>
+                <div class="chart-container"><canvas id="salaryLineChart"></canvas></div>
+                <div class="chart-container"><canvas id="majStackedChart"></canvas></div>
+                <div class="chart-container"><canvas id="dailyPrimesChart"></canvas></div>
+            </div>
+            <div class="today-btn" id="todayStatsBtn">Aujourd'hui</div>
+        `;
+        document.getElementById('backStatsBtn').onclick = () => location.reload();
+        function refreshStats() {
+            const last7 = [];
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const dateStr = d.toLocaleDateString('fr-FR');
+                const session = sessions.find(s => s.date === dateStr);
+                let hours = 0, brut = 0, majNuit = 0, majDim = 0, majFerie = 0, majHS = 0, dailyPrimeTotal = 0;
+                if (session) {
+                    const parts = session.workTime.split(':');
+                    hours = parseFloat(parts[0]) + parseFloat(parts[1])/60 + parseFloat(parts[2])/3600;
+                    brut = parseFloat(session.brut);
+                    majNuit = session.majDetails?.nuit || 0;
+                    majDim = session.majDetails?.dimanche || 0;
+                    majFerie = session.majDetails?.ferie || 0;
+                    majHS = session.majDetails?.hs || 0;
+                    if (dateStr === today.toLocaleDateString('fr-FR')) {
+                        dailyPrimeTotal = getDailyPrimes().reduce((s,p)=> s + p.amount, 0);
+                    }
+                }
+                last7.push({ date: dateStr, hours, brut, majNuit, majDim, majFerie, majHS, dailyPrimeTotal });
+            }
+            const avgHours = last7.reduce((s,d)=> s + d.hours, 0) / 7;
+            document.getElementById('statsSummary').innerHTML = `Moyenne d'heures par jour (7j) : ${avgHours.toFixed(2)} h | Projection mensuelle : ${(avgHours * 21.67).toFixed(2)} h | Salaire mensuel estimé : ${(avgHours * 21.67 * (workRules.tauxBrut)).toFixed(2)} € brut`;
+            const ctxBar = document.getElementById('hoursBarChart').getContext('2d');
+            const ctxLine = document.getElementById('salaryLineChart').getContext('2d');
+            const ctxStack = document.getElementById('majStackedChart').getContext('2d');
+            const ctxPrimes = document.getElementById('dailyPrimesChart').getContext('2d');
+            if (window.barChart) window.barChart.destroy();
+            if (window.lineChart) window.lineChart.destroy();
+            if (window.stackedChart) window.stackedChart.destroy();
+            if (window.primesChart) window.primesChart.destroy();
+            window.barChart = new Chart(ctxBar, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Heures travaillées', data:last7.map(d=>d.hours), backgroundColor:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1E4A6F' }] } });
+            window.lineChart = new Chart(ctxLine, { type:'line', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Salaire brut (€)', data:last7.map(d=>d.brut), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1E4A6F', fill:false, tension:0.3 }] } });
+            window.stackedChart = new Chart(ctxStack, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Nuit', data:last7.map(d=>d.majNuit), backgroundColor:'#F59E0B', stack:'stack0' },{ label:'Dimanche', data:last7.map(d=>d.majDim), backgroundColor:'#3B82F6', stack:'stack0' },{ label:'Férié', data:last7.map(d=>d.majFerie), backgroundColor:'#10B981', stack:'stack0' },{ label:'HS', data:last7.map(d=>d.majHS), backgroundColor:'#EF4444', stack:'stack0' }] }, options:{ responsive:true, scales:{ x:{ stacked:true }, y:{ stacked:true, title:{ display:true, text:'Montant (€)' } } } } });
+            window.primesChart = new Chart(ctxPrimes, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Total primes journalières (€)', data:last7.map(d=>d.dailyPrimeTotal), backgroundColor:'#10B981' }] }, options:{ responsive:true, scales:{ y:{ title:{ display:true, text:'Montant (€)' } } } } });
+        }
+        refreshStats();
+        document.getElementById('todayStatsBtn').addEventListener('click', refreshStats);
+    }
+    // ---------- APPLICATION PRINCIPALE ----------
+    function loadMainApp() {
+        loadWorkRules();
+        loadPrefs();
+        loadLockPassword();
+        // Render main app first
+        renderMainApp();
+        // Then restore auto-save state (DOM now exists)
+        const restored = restoreAutoSaveState();
+        if (!restored) {
+            workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
+            workRunning = false; lunchRunning = false; shortPauseRunning = false;
+            lastTimestamp = null; workStartTimestamp = null;
+            currentDate = new Date().toDateString();
+        }
+        // Force update displays after restore
+        updateAllDisplays();
+        updateButtonsUI();
+        if (timerInterval) clearInterval(timerInterval);
+        const stored = localStorage.getItem('workSessions');
+        sessions = stored ? JSON.parse(stored) : [];
+        sessions = sessions.filter(s => s && s.date && s.workTime);
+        renderHistory();
+        startAutoSave();
+        startNightModeWatcher();
+        window.onbeforeunload = function(e) {
+            if (workRunning) {
+                e.preventDefault();
+                e.returnValue = "Le travail est en cours. Êtes-vous sûr de vouloir quitter ?";
+                return "Le travail est en cours. Êtes-vous sûr de vouloir quitter ?";
+            }
+        };
+    }
+    function formatTime(sec) { const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60; return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+    function roundSeconds(seconds, rule) {
+        if (rule === "none") return seconds;
+        let totalMinutes = seconds/60, rounded;
+        if (rule === "minute") rounded = Math.round(totalMinutes);
+        else if (rule === "5min") rounded = Math.round(totalMinutes/5)*5;
+        else if (rule === "10min") rounded = Math.round(totalMinutes/10)*10;
+        else if (rule === "15min") rounded = Math.round(totalMinutes/15)*15;
+        else return seconds;
+        return Math.max(0, rounded*60);
+    }
+    function getRoundedWorkSeconds() { return roundSeconds(workSeconds, workRules.roundingRule); }
+    function ensureWorkStartTimestamp() {
+        if (workSeconds > 0 && workStartTimestamp === null) {
+            workStartTimestamp = Date.now() - (workSeconds * 1000);
+        }
+    }
+    function updateAllDisplays() {
+        ensureWorkStartTimestamp();
+        const rounded = getRoundedWorkSeconds();
+        const workElem = document.getElementById('workTime');
+        if (workElem) workElem.innerText = formatTime(rounded);
+        const realElem = document.getElementById('realTime');
+        if (realElem) realElem.innerText = `réel: ${formatTime(workSeconds)}`;
+        const lunchElem = document.getElementById('lunchTime');
+        if (lunchElem) lunchElem.innerText = formatTime(lunchSeconds);
+        const shortElem = document.getElementById('shortPauseTime');
+        if (shortElem) shortElem.innerText = formatTime(shortPauseSeconds);
+        const total = computeTotalSalary(rounded, workStartTimestamp);
+        const brutElem = document.getElementById('brutTotal');
+        if (brutElem) brutElem.innerText = total.brut.toFixed(2)+" €";
+        const netElem = document.getElementById('netTotal');
+        if (netElem) netElem.innerText = total.net.toFixed(2)+" €";
+        let majHtml = `
+            <div class="maj-line"><span class="maj-label">Nuit</span><span class="maj-amount">+${total.majNuit.toFixed(2)}€ brut</span></div>
+            <div class="maj-line"><span class="maj-label">Dimanche</span><span class="maj-amount">+${total.majDimanche.toFixed(2)}€ brut</span></div>
+            <div class="maj-line"><span class="maj-label">Férié</span><span class="maj-amount">+${total.majFerie.toFixed(2)}€ brut</span></div>
+            <div class="maj-line"><span class="maj-label">Heures sup.</span><span class="maj-amount">+${total.majHS.toFixed(2)}€ brut</span></div>`;
+        if (total.ancienneteBrut > 0) majHtml += `<div class="maj-line"><span class="maj-label">Ancienneté</span><span class="maj-amount">+${total.ancienneteBrut.toFixed(2)}€ brut</span></div>`;
+        const totalMaj = total.majNuit + total.majDimanche + total.majFerie + total.majHS;
+        majHtml += `<div class="maj-line" style="border-top:1px solid var(--border-light);margin-top:8px;padding-top:8px;font-weight:500;"><span>Total majorations</span><span>${totalMaj.toFixed(2)} € brut</span></div>`;
+        const majDiv = document.getElementById('majDetails');
+        if (majDiv) majDiv.innerHTML = majHtml;
+        const dailyPrimes = getDailyPrimes();
+        const primesDiv = document.getElementById('primesDetails');
+        if (primesDiv) {
+            if (dailyPrimes.length > 0) {
+                let primesHtml = '';
+                let totalPrimes = 0;
+                for (let p of dailyPrimes) {
+                    primesHtml += `<div class="prime-line"><span class="prime-label">${p.name}</span><span class="prime-amount">${p.amount.toFixed(2)} €</span></div>`;
+                    totalPrimes += p.amount;
+                }
+                primesHtml += `<div class="prime-line" style="border-top:1px solid var(--border-light);margin-top:8px;padding-top:8px;font-weight:500;"><span>Total primes (jour)</span><span>${totalPrimes.toFixed(2)} €</span></div>`;
+                primesDiv.innerHTML = primesHtml;
+                const primesCard = document.getElementById('primesCard');
+                if (primesCard) primesCard.style.display = 'block';
+            } else {
+                const primesCard = document.getElementById('primesCard');
+                if (primesCard) primesCard.style.display = 'none';
+            }
+        }
+    }
+    function tick() { if (!lastTimestamp) return; const now=Date.now(), elapsed=Math.floor((now-lastTimestamp)/1000); if(elapsed>=1){ if(workRunning) workSeconds+=elapsed; else if(lunchRunning) lunchSeconds+=elapsed; else if(shortPauseRunning) shortPauseSeconds+=elapsed; lastTimestamp=now; updateAllDisplays(); updateButtonsUI(); checkDateChange(); } }
+    function startTimer() { if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(tick,200); }
+    function checkDateChange() { const today=new Date().toDateString(); if(today!==currentDate){ resetAtMidnight(); currentDate=today; showInfoModal("Nouvelle journée - compteurs remis à zéro"); } }
+    function resetAtMidnight() { if(workSeconds||lunchSeconds||shortPauseSeconds) saveSessionToHistory(); workSeconds=lunchSeconds=shortPauseSeconds=0; workRunning=lunchRunning=shortPauseRunning=false; workStartTimestamp=lastTimestamp=null; updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function saveSessionToHistory() {
+        const rounded=getRoundedWorkSeconds();
+        if(rounded===0 && lunchSeconds===0 && shortPauseSeconds===0) return;
+        const now=new Date(), dateStr=now.toLocaleDateString('fr-FR'), timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+        ensureWorkStartTimestamp();
+        const total = computeTotalSalary(rounded, workStartTimestamp);
+        const dailyPrimes = getDailyPrimes();
+        let primesTotal = dailyPrimes.reduce((s,p)=> s + p.amount, 0);
+        const brutTotal = total.brut + primesTotal;
+        const netTotal = total.net + primesTotal * (workRules.tauxNet / workRules.tauxBrut);
+        const session = { date: dateStr, timeOfDay: timeStr, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
+        sessions.unshift(session);
+        if(sessions.length>50) sessions.pop();
+        localStorage.setItem('workSessions',JSON.stringify(sessions));
+        renderHistory();
+        workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
+        workRunning = false; lunchRunning = false; shortPauseRunning = false;
+        workStartTimestamp = null; lastTimestamp = null;
+        updateAllDisplays();
+        updateButtonsUI();
+        saveStateToLocal();
+    }
+    function renderHistory() {
+        const div = document.getElementById('historyList');
+        if (!div) return;
+        if (!sessions.length) { div.innerHTML = '<div style="color:var(--text-secondary);text-align:center;">Aucune session</div>'; return; }
+        div.innerHTML = sessions.map((s, idx) => `
+            <div class="history-item">
+                <div class="history-item-content">
+                    <div><strong>${s.date}</strong> ${s.timeOfDay || ''}</div>
+                    <div>Travail: ${s.workTime} | Déj: ${s.lunchTime} | Pause: ${s.shortPauseTime}</div>
+                    <div>Brut: ${s.brut}€ | Net: ${s.net}€</div>
+                    <div>Maj: ${s.majBrut}€</div>
+                </div>
+                <span class="delete-session mono-icon" data-index="${idx}">🗑️</span>
+            </div>
+        `).join('');
+        document.querySelectorAll('.delete-session').forEach(el => {
+            el.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+                deleteSession(idx);
+            });
+        });
+    }
+    function updateButtonsUI() {
+        const startWorkBtn=document.getElementById('startWorkBtn');
+        if(!startWorkBtn) return;
+        startWorkBtn.disabled = workRunning;
+        const startLunchBtn=document.getElementById('startLunchBtn');
+        const stopLunchBtn=document.getElementById('stopLunchBtn');
+        const startShortPauseBtn=document.getElementById('startShortPauseBtn');
+        const stopShortPauseBtn=document.getElementById('stopShortPauseBtn');
+        const stopDayBtn=document.getElementById('stopDayBtn');
+        const hamburgerBtn=document.getElementById('hamburgerBtn');
+        if(lunchRunning){
+            startLunchBtn.disabled=true; stopLunchBtn.disabled=false;
+            startLunchBtn.classList.remove('btn-lunch'); startLunchBtn.classList.add('btn-secondary');
+            stopLunchBtn.classList.remove('btn-secondary'); stopLunchBtn.classList.add('btn-lunch');
+        } else {
+            startLunchBtn.disabled=false; stopLunchBtn.disabled=true;
+            startLunchBtn.classList.remove('btn-secondary'); startLunchBtn.classList.add('btn-lunch');
+            stopLunchBtn.classList.remove('btn-lunch'); stopLunchBtn.classList.add('btn-secondary');
+        }
+        if(shortPauseRunning){
+            startShortPauseBtn.disabled=true; stopShortPauseBtn.disabled=false;
+            startShortPauseBtn.classList.remove('btn-lunch'); startShortPauseBtn.classList.add('btn-secondary');
+            stopShortPauseBtn.classList.remove('btn-secondary'); stopShortPauseBtn.classList.add('btn-lunch');
+        } else {
+            startShortPauseBtn.disabled=false; stopShortPauseBtn.disabled=true;
+            startShortPauseBtn.classList.remove('btn-secondary'); startShortPauseBtn.classList.add('btn-lunch');
+            stopShortPauseBtn.classList.remove('btn-lunch'); stopShortPauseBtn.classList.add('btn-secondary');
+        }
+        const hasAnyTime = (workSeconds+lunchSeconds+shortPauseSeconds)>0;
+        if(locked){
+            startWorkBtn.disabled=true; startLunchBtn.disabled=true; stopLunchBtn.disabled=true; startShortPauseBtn.disabled=true; stopShortPauseBtn.disabled=true; stopDayBtn.disabled=true; if(hamburgerBtn) hamburgerBtn.disabled=true;
+        } else {
+            stopDayBtn.disabled=!hasAnyTime; if(hamburgerBtn) hamburgerBtn.disabled=false;
+        }
+    }
+    function startWork(){ if(locked) return; if(workRunning) return; customConfirm("Voulez-vous démarrer le travail ?",(ok)=>{ if(!ok) return; if(lunchRunning) lunchRunning=false; if(shortPauseRunning) shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function startLunch(){ if(locked) return; if(lunchRunning) return; customConfirm("Démarrer la pause déjeuner ?",(ok)=>{ if(!ok) return; if(workRunning) workRunning=false; if(shortPauseRunning) shortPauseRunning=false; lunchRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function stopLunch(){ if(locked) return; if(!lunchRunning) return; customConfirm("Terminer la pause déjeuner ?",(ok)=>{ if(!ok) return; lunchRunning=false; workRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function startShortPause(){ if(locked) return; if(shortPauseRunning) return; customConfirm("Démarrer une pause courte ?",(ok)=>{ if(!ok) return; if(workRunning) workRunning=false; if(lunchRunning) lunchRunning=false; shortPauseRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function stopShortPause(){ if(locked) return; if(!shortPauseRunning) return; customConfirm("Terminer la pause courte ?",(ok)=>{ if(!ok) return; shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }); }
+    // Exports (CSV, copy, PDF)
+    function exportCSV() {
+        if (sessions.length === 0) { showInfoModal("Aucune session à exporter."); return; }
+        let csvRows = [["Date", "Heures travaillées", "Salaire brut (€)", "Salaire net (€)", "Majorations (€)"]];
+        for (let s of sessions) { csvRows.push([s.date, s.workTime, s.brut, s.net, s.majBrut]); }
+        const csvContent = csvRows.map(row => row.join(";")).join("\n");
+        const blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "historique_salaire.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+        showInfoModal("Export CSV terminé");
+    }
+    function copyDayDetails() {
+        const rounded = getRoundedWorkSeconds();
+        const total = computeTotalSalary(rounded, workStartTimestamp);
+        const dailyPrimes = getDailyPrimes();
+        let primesText = dailyPrimes.length ? "\nPrimes journalières : " + dailyPrimes.map(p => `${p.name} : ${p.amount.toFixed(2)} €`).join(", ") : "";
+        const text = `TicTime - Détail du jour\n\nHeures travaillées (réel) : ${(workSeconds/3600).toFixed(2)} h\nHeures travaillées (arrondi) : ${(rounded/3600).toFixed(2)} h\nSalaire brut : ${total.brut.toFixed(2)} €\nSalaire net : ${total.net.toFixed(2)} €\nMajorations : Nuit ${total.majNuit.toFixed(2)}€, Dimanche ${total.majDimanche.toFixed(2)}€, Férié ${total.majFerie.toFixed(2)}€, HS ${total.majHS.toFixed(2)}€${primesText}\nTotal primes (jour) : ${dailyPrimes.reduce((s,p)=>s+p.amount,0).toFixed(2)} €\nTotal majorations : ${(total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2)} €`;
+        navigator.clipboard.writeText(text).then(() => showInfoModal("Détail du jour copié dans le presse-papier")).catch(() => showInfoModal("Erreur lors de la copie"));
+    }
+    function exportPDFWithShare() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const defaultValue = `${currentMonth.toString().padStart(2,'0')}/${currentYear}`;
+        showInputModal("Choisissez le mois (MM/AAAA) :", (moisSelection) => {
+            if(!moisSelection) return;
+            const regex = /^(0[1-9]|1[0-2])\/([0-9]{4})$/;
+            if(!regex.test(moisSelection)){ showInfoModal("Format invalide. Utilisez MM/AAAA"); return; }
+            generateMonthlyPDF(moisSelection);
+        }, defaultValue, 'text');
+    }
+    async function generateMonthlyPDF(moisSelection) {
+        const [moisStr, anneeStr] = moisSelection.split('/');
+        let mois = parseInt(moisStr)-1, annee = parseInt(anneeStr);
+        const sessionsFiltrees = sessions.filter(s => { const parts = s.date.split('/'); if(parts.length!==3) return false; return parseInt(parts[2])===annee && (parseInt(parts[1])-1)===mois; });
+        if(sessionsFiltrees.length===0){ showInfoModal("Aucune session pour cette période."); return; }
+        sessionsFiltrees.sort((a,b)=>new Date(a.date.split('/').reverse().join('-')) - new Date(b.date.split('/').reverse().join('-')));
+        let totalHeures=0,totalBrut=0,totalNet=0,totalMaj=0;
+        for(const s of sessionsFiltrees){
+            const parts = s.workTime.split(':');
+            const heures = parseInt(parts[0]) + parseInt(parts[1])/60 + parseInt(parts[2])/3600;
+            totalHeures += heures; totalBrut += parseFloat(s.brut); totalNet += parseFloat(s.net); totalMaj += parseFloat(s.majBrut);
+        }
+        const monthNames = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+        // Compléments mensuels : primes mensuelles et 13e mois
+        const netCoeff = workRules.tauxNet / workRules.tauxBrut;
+        const monthlyPrimes = workRules.primes.filter(p => p.enabled && p.period === "monthly" && p.amount > 0).map(p => ({ name: p.customName || p.name, amount: p.amount }));
+        const primesMensuellesTotal = monthlyPrimes.reduce((s,p)=> s + p.amount, 0);
+        let thirteenthAmount = 0, thirteenthLabel = "";
+        if (workRules.thirteenthMonth.enabled && workRules.thirteenthMonth.amount > 0) {
+            if (workRules.thirteenthMonth.type === 'monthly') {
+                thirteenthAmount = workRules.thirteenthMonth.amount / 12;
+                thirteenthLabel = "13e mois (mensualisé)";
+            } else if (workRules.thirteenthMonth.month === mois) {
+                thirteenthAmount = workRules.thirteenthMonth.amount;
+                thirteenthLabel = "13e mois (versement)";
+            }
+        }
+        const complementsTotal = primesMensuellesTotal + thirteenthAmount;
+        let complementsHtml = "";
+        if (complementsTotal > 0) {
+            let lignes = monthlyPrimes.map(p => `<tr><td style="border:1px solid #ccc;padding:8px;">${p.name}</td><td style="border:1px solid #ccc;padding:8px;">${p.amount.toFixed(2)} €</td></tr>`).join('');
+            if (thirteenthAmount > 0) lignes += `<tr><td style="border:1px solid #ccc;padding:8px;">${thirteenthLabel}</td><td style="border:1px solid #ccc;padding:8px;">${thirteenthAmount.toFixed(2)} €</td></tr>`;
+            complementsHtml = `<h3 style="margin-top:20px;">Compléments mensuels</h3><table style="width:100%; border-collapse:collapse;"><tbody>${lignes}</tbody></table><p style="margin-top:16px; font-weight:bold;">Total général : ${(totalBrut + complementsTotal).toFixed(2)} € brut | ${(totalNet + complementsTotal * netCoeff).toFixed(2)} € net (estimé)</p>`;
+        }
+        const container = document.createElement('div');
+        container.style.padding='20px'; container.style.fontFamily='system-ui'; container.style.backgroundColor='white'; container.style.color='black';
+        container.innerHTML = `<h1 style="text-align:center;">Bilan mensuel</h1><h2 style="text-align:center;">${monthNames[mois]} ${annee}</h2><table style="width:100%; border-collapse:collapse;"><thead><tr><th style="border:1px solid #ccc;padding:8px;">Date</th><th>Heures</th><th>Brut(€)</th><th>Net(€)</th><th>Maj(€)</th></tr></thead><tbody>${sessionsFiltrees.map(s=>`<tr><td style="border:1px solid #ccc;padding:8px;">${s.date}</td><td style="border:1px solid #ccc;padding:8px;">${s.workTime}</td><td style="border:1px solid #ccc;padding:8px;">${s.brut}€</td><td style="border:1px solid #ccc;padding:8px;">${s.net}€</td><td style="border:1px solid #ccc;padding:8px;">${s.majBrut}€</td></tr>`).join('')}</tbody><tfoot><tr style="font-weight:bold;"><td style="border:1px solid #ccc;padding:8px;">Total</td><td style="border:1px solid #ccc;padding:8px;">${totalHeures.toFixed(2)} h</td><td style="border:1px solid #ccc;padding:8px;">${totalBrut.toFixed(2)} €</td><td style="border:1px solid #ccc;padding:8px;">${totalNet.toFixed(2)} €</td><td style="border:1px solid #ccc;padding:8px;">${totalMaj.toFixed(2)} €</td></tr></tfoot></table>${complementsHtml}`;
+        document.body.appendChild(container);
+        try {
+            const canvas = await html2canvas(container, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgWidth = 190;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+            const pdfBlob = pdf.output('blob');
+            const pdfUrl = URL.createObjectURL(pdfBlob);
+            if (navigator.share) {
+                await navigator.share({ title: `Bilan ${monthNames[mois]} ${annee}`, files: [new File([pdfBlob], `bilan_${monthNames[mois]}_${annee}.pdf`, { type: 'application/pdf' })] });
+                showInfoModal("PDF partagé");
+            } else {
+                const a = document.createElement('a'); a.href = pdfUrl; a.download = `bilan_${monthNames[mois]}_${annee}.pdf`; a.click();
+                showInfoModal("PDF généré");
+            }
+            URL.revokeObjectURL(pdfUrl);
+        } catch(e) { showInfoModal("Erreur PDF"); } finally { document.body.removeChild(container); }
+    }
+    // ---------- RENDER MAIN ----------
+    function renderMainApp() {
+        const root = document.getElementById('appRoot');
+        root.innerHTML = `
+            <div class="app">
+                <div class="main-card">
+                    <div class="top-bar">
+                        <div class="left-group"><button class="hamburger" id="hamburgerBtn">≡</button></div>
+                        <div class="title-container"><div class="main-title">TicTime</div></div>
+                        <div class="right-group"><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
+                    </div>
+                    <div class="salary-row"><div class="salary-card"><div class="salary-value brut" id="brutTotal">0,00 €</div><div>Brut</div></div><div class="salary-card"><div class="salary-value net" id="netTotal">0,00 €</div><div>Net</div></div></div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Temps travaillé</span><span class="counter-value" id="workTime">00:00:00</span></div>
+                        <div class="real-time" id="realTime">réel: 00:00:00</div>
+                        <div class="button-group"><button class="btn btn-primary" id="startWorkBtn">Commencer</button></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Pause déjeuner</span><span class="counter-value" id="lunchTime">00:00:00</span></div>
+                        <div class="button-group"><button class="btn btn-lunch" id="startLunchBtn">Démarrer déjeuner</button><button class="btn btn-secondary" id="stopLunchBtn" disabled>Terminer déjeuner</button></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Pauses courtes</span><span class="counter-value" id="shortPauseTime">00:00:00</span></div>
+                        <div class="button-group"><button class="btn btn-lunch" id="startShortPauseBtn">Démarrer pause</button><button class="btn btn-secondary" id="stopShortPauseBtn" disabled>Terminer pause</button></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:12px;">Majorations</div>
+                        <div id="majDetails"></div>
+                    </div>
+                    <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
+                    <button class="btn btn-stop" id="stopDayBtn">Arrêter la journée</button>
+                </div>
+            </div>
+            <div class="drawer" id="drawer">
+                <div class="drawer-header"><h3>Menu</h3><button class="close-drawer" id="closeDrawerBtn">✕</button></div>
+                <div class="drawer-content">
+                    <div class="menu-section"><div class="menu-section-title">Général</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Saisie & Données</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
+                    <div class="menu-section"><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuExport"><span class="mono-icon">📋</span> Exporter JSON</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Exporter PDF</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div></div>
+                </div>
+            </div>
+        `;
+        attachMainEvents();
+        startTimer();
+        updateAllDisplays();
+        checkDateChange();
+        updateButtonsUI();
+    }
+    function attachMainEvents() {
+        document.getElementById('hamburgerBtn').onclick = () => { if (!locked) document.getElementById('drawer').classList.add('open'); document.getElementById('overlay').classList.add('active'); };
+        document.getElementById('closeDrawerBtn').onclick = () => { document.getElementById('drawer').classList.remove('open'); document.getElementById('overlay').classList.remove('active'); };
+        document.getElementById('startWorkBtn').onclick = startWork;
+        document.getElementById('startLunchBtn').onclick = startLunch;
+        document.getElementById('stopLunchBtn').onclick = stopLunch;
+        document.getElementById('startShortPauseBtn').onclick = startShortPause;
+        document.getElementById('stopShortPauseBtn').onclick = stopShortPause;
+        document.getElementById('stopDayBtn').onclick = stopDay;
+        const lockSwitch = document.getElementById('lockSwitchInput');
+        lockSwitch.addEventListener('change', (e) => { if (e.target.checked) { locked = true; updateButtonsUI(); showInfoModal("Écran verrouillé."); } else { showInputModal("Mot de passe pour déverrouiller", (pwd) => { if (pwd === lockPassword) { locked = false; updateButtonsUI(); showInfoModal("Écran déverrouillé."); lockSwitch.checked = false; } else { showInfoModal("Mot de passe incorrect."); lockSwitch.checked = true; locked = true; updateButtonsUI(); } }, ""); } });
+        document.getElementById('menuProfile').onclick = () => { closeDrawer(); showConfigPage(false); };
+        document.getElementById('menuStats').onclick = () => { closeDrawer(); showStats(); };
+        document.getElementById('menuSettings').onclick = () => { closeDrawer(); showSettingsPage(); };
+        document.getElementById('menuManualEntry').onclick = () => { closeDrawer(); manualEntry(); };
+        document.getElementById('menuCloud').onclick = () => {
+            closeDrawer();
+            if (cloudConfigured) { showCloudPage(); }
+            else { showInfoModal("Cloud non configuré : remplacez les valeurs de l'objet firebaseConfig dans le code par celles de votre projet Firebase. En attendant, utilisez Exporter/Importer JSON."); }
+        };
+        document.getElementById('menuExportCSV').onclick = () => { closeDrawer(); exportCSV(); };
+        document.getElementById('menuCopyDay').onclick = () => { closeDrawer(); copyDayDetails(); };
+        document.getElementById('menuImportJSON').onclick = () => { closeDrawer(); importJSON(); };
+        document.getElementById('menuWeekly').onclick = () => { closeDrawer(); showWeeklyCumul(); };
+        document.getElementById('menuExport').onclick = () => { closeDrawer(); exportJSON(); };
+        document.getElementById('menuExportPDF').onclick = () => { closeDrawer(); exportPDFWithShare(); };
+        document.getElementById('menuHelp').onclick = () => { closeDrawer(); openHelp(); };
+        document.getElementById('menuAbout').onclick = () => { showInfoModal("TicTime v3.0"); };
+        renderHistory();
+        updateButtonsUI();
+        function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('overlay').classList.remove('active'); }
+        function showWeeklyCumul(){
+            let totalHeures=0,totalBrut=0,totalNet=0,totalMaj=0;
+            const today=new Date();
+            const curRounded=getRoundedWorkSeconds();
+            const curTotal = computeTotalSalary(curRounded, workStartTimestamp);
+            const curPrimes = getDailyPrimes().reduce((s,p)=> s + p.amount, 0);
+            if(curRounded>0 || lunchSeconds>0 || shortPauseSeconds>0){ totalHeures+=curRounded/3600; totalBrut+=curTotal.brut + curPrimes; totalNet+=curTotal.net + curPrimes * (workRules.tauxNet / workRules.tauxBrut); totalMaj+=curTotal.majNuit+curTotal.majDimanche+curTotal.majFerie+curTotal.majHS; }
+            for(let i=1;i<=6;i++){ const d=new Date(); d.setDate(today.getDate()-i); const dateStr=d.toLocaleDateString('fr-FR'); const s=sessions.find(s=>s.date===dateStr); if(s){ totalHeures+=parseFloat(s.workTime.split(':')[0])+parseFloat(s.workTime.split(':')[1])/60+parseFloat(s.workTime.split(':')[2])/3600; totalBrut+=parseFloat(s.brut); totalNet+=parseFloat(s.net); totalMaj+=parseFloat(s.majBrut); } }
+            showInfoModal(`Cumul 7 jours :\nHeures: ${totalHeures.toFixed(2)} h\nBrut: ${totalBrut.toFixed(2)} €\nNet: ${totalNet.toFixed(2)} €\nMajorations: ${totalMaj.toFixed(2)} €`);
+        }
+        function exportJSON(){ const dataStr=JSON.stringify(sessions,null,2); const blob=new Blob([dataStr],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="historique_salaire.json"; a.click(); URL.revokeObjectURL(url); showInfoModal("Export JSON terminé"); }
+        function openHelp() {
+            const mainDiv = document.querySelector('.main-card');
+            mainDiv.innerHTML = `
+                <div class="top-bar">
+                    <div class="left-group"><button class="hamburger" id="backHelpBtn">←</button></div>
+                    <div class="title-container"><div class="main-title" style="font-size:1.2rem; text-align:center;">Aide & Guide</div></div>
+                    <div class="right-group"></div>
+                </div>
+                <div class="card">
+                    <details class="help-section" open>
+                        <summary>Guide rapide</summary>
+                        <p><strong>1. Démarrer une journée</strong> : cliquez sur "Commencer". Le compteur se lance et le salaire défile en temps réel.</p>
+                        <p><strong>2. Faire une pause</strong> : utilisez les boutons "Déjeuner" ou "Pause courte". Ils s’échangent les couleurs avec le bouton "Terminer".</p>
+                        <p><strong>3. Arrêter la journée</strong> : cliquez sur "Arrêter la journée". La session est enregistrée dans l’historique et les compteurs remis à zéro.</p>
+                        <p><strong>4. Saisie manuelle</strong> : si vous avez oublié de chronométrer, allez dans le menu "Saisie manuelle" pour ajouter une plage horaire ou remplacer le temps du jour.</p>
+                        <p><strong>5. Voir l’historique</strong> : dans le menu, la liste des 50 dernières sessions. Vous pouvez exporter toutes les données en JSON, CSV, ou générer un bilan mensuel PDF.</p>
+                        <p><strong>6. Copier le détail du jour</strong> : un menu "Copier détail du jour" place dans le presse‑papier un résumé de la journée en cours (heures, salaire, majorations, primes).</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Majorations et heures supplémentaires</summary>
+                        <p>Les majorations sont calculées seconde par seconde selon les règles que vous avez configurées dans votre profil :</p>
+                        <ul>
+                            <li><strong>Nuit</strong> : plage horaire définie (ex. 21h – 6h), majoration de +100% (ou votre taux).</li>
+                            <li><strong>Dimanche</strong> : majoration de +100% (ou votre taux).</li>
+                            <li><strong>Jours fériés</strong> : liste légale française, majoration de +100% (ou votre taux).</li>
+                            <li><strong>Heures supplémentaires</strong> : deux modes possibles :
+                                <ul>
+                                    <li><em>Seuil journalier</em> : au‑delà d’un certain nombre d’heures par jour (défaut 7h), les heures sont majorées (ex. 25%). Vous pouvez également définir un second seuil (ex. 8h) avec une majoration plus élevée (ex. 50%).</li>
+                                    <li><em>Seuil hebdomadaire</em> : vous pouvez choisir d’utiliser un seuil par semaine (ex. 35h) pour déclencher les heures supplémentaires.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        <p>Les montants des majorations s’affichent en temps réel dans la carte "Majorations".</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Primes et compléments de salaire</summary>
+                        <p>Vous pouvez ajouter des primes fixes (panier, transport, pénibilité, personnalisée) dans "Mon profil" (mode précis).</p>
+                        <ul>
+                            <li><strong>Primes journalières</strong> : montant fixe par jour (ex. 5 € de panier). Elles apparaissent dans une carte séparée "Primes journalières".</li>
+                            <li><strong>Primes mensuelles</strong> : ajoutées au salaire dans les exports (bilan mensuel, historique), pas en temps réel.</li>
+                            <li><strong>Prime d’ancienneté</strong> : activable avec un pourcentage par année ou un montant fixe mensuel (saisie de la date d’entrée).</li>
+                            <li><strong>13e mois</strong> : optionnel, versé en une fois un mois donné ou mensualisé.</li>
+                        </ul>
+                    </details>
+                    <details class="help-section">
+                        <summary>Arrondi du temps</summary>
+                        <p>Dans les <strong>Réglages</strong>, vous pouvez choisir une règle d’arrondi (aucun, minute, 5, 10 ou 15 minutes). L’affichage et les calculs de salaire utiliseront alors la valeur arrondie, tandis que le temps réel reste visible en petit sous le compteur.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Verrouillage et sécurité</summary>
+                        <p>Le switch en haut à droite verrouille l’écran : les boutons d’action sont désactivés. Pour déverrouiller, recliquez sur le switch et entrez le mot de passe (défaut : <strong>0000</strong>). Le mot de passe peut être modifié dans <strong>Réglages</strong> (rubrique "Changer le mot de passe de verrouillage"). Le menu reste accessible, mais les actions sont bloquées.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Personnalisation de l'affichage</summary>
+                        <p>Dans <strong>Réglages</strong>, vous avez plusieurs options :</p>
+                        <ul>
+                            <li><strong>Mode sombre</strong> : automatique (selon le thème du système), clair ou sombre manuel.</li>
+                            <li><strong>Mode nuit automatique</strong> : active le thème sombre automatiquement pendant la plage horaire configurée (nuit).</li>
+                            <li><strong>Couleur principale</strong> : personnalisez la couleur des boutons et éléments d’accent.</li>
+                            <li><strong>Affichage compact</strong> : réduit les marges et les tailles de police pour plus d’informations à l’écran.</li>
+                            <li><strong>Haute lisibilité</strong> : augmente le contraste (utile pour les malvoyants ou en plein soleil).</li>
+                            <li><strong>Haute performance</strong> : désactive toutes les animations (fluidité accrue sur les appareils lents).</li>
+                        </ul>
+                    </details>
+                    <details class="help-section">
+                        <summary>Cloud (Firebase)</summary>
+                        <p>Le menu <strong>Cloud</strong> permet de sauvegarder votre historique et votre profil dans Firebase, puis de les restaurer sur un autre appareil (connexion Google requise). La restauration fusionne les sessions sans créer de doublons. Nécessite d’avoir renseigné l’objet <code>firebaseConfig</code> dans le code avec les clés de votre projet. La persistance locale (navigateur) reste active en permanence.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Exports et partage</summary>
+                        <ul>
+                            <li><strong>Export JSON</strong> : télécharge toutes les sessions au format JSON.</li>
+                            <li><strong>Export CSV</strong> : télécharge l’historique au format CSV (compatible tableur).</li>
+                            <li><strong>Export PDF</strong> : génère un bilan mensuel. Sur mobile, un bouton de partage direct (Web Share) permet d’envoyer le fichier par messagerie, email, etc.</li>
+                            <li><strong>Import JSON</strong> : permet de restaurer des sessions précédemment exportées ou de fusionner des données.</li>
+                        </ul>
+                    </details>
+                    <details class="help-section">
+                        <summary>Statistiques avancées</summary>
+                        <p>La page <strong>Statistiques</strong> affiche :</p>
+                        <ul>
+                            <li>Un histogramme des heures travaillées par jour (7 derniers jours).</li>
+                            <li>Une courbe du salaire brut sur la même période.</li>
+                            <li>Un histogramme empilé des majorations (nuit, dimanche, férié, HS).</li>
+                            <li>Un graphique du total des primes journalières.</li>
+                            <li>La moyenne d’heures par jour, la projection mensuelle et le salaire mensuel estimé.</li>
+                        </ul>
+                        <p>Le bouton "Aujourd’hui" permet de rafraîchir les graphiques (utile après ajout d’une session manuelle).</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Sauvegarde automatique et fermeture</summary>
+                        <p>L’état du travail (temps, pauses) est automatiquement sauvegardé toutes les minutes. Si vous fermez accidentellement la page, le compteur reprendra là où vous l’aviez laissé (pour la journée en cours). Un message de confirmation s’affiche si vous tentez de quitter la page alors que le travail est en cours.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Gestion de l’historique</summary>
+                        <p>Dans le menu latéral, l’historique liste les 50 dernières sessions. Vous pouvez supprimer une session en cliquant sur l’icône poubelle à droite de chaque entrée (une confirmation vous est demandée).</p>
+                        <p>L’import de sessions JSON fusionne les nouvelles données sans créer de doublons (basé sur la date et l’heure de fin).</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Astuces supplémentaires</summary>
+                        <ul>
+                            <li>Les boutons changent de couleur et s’activent/désactivent automatiquement selon le contexte (travail, pause).</li>
+                            <li>Le menu latéral est scrollable (tirez vers le bas si beaucoup d’entrées).</li>
+                            <li>À minuit, la journée est automatiquement sauvegardée et les compteurs remis à zéro.</li>
+                            <li>Le temps réel (non arrondi) est affiché en petit sous le compteur principal.</li>
+                        </ul>
+                    </details>
+                </div>
+            `;
+            document.getElementById('backHelpBtn').onclick = () => location.reload();
+        }
+        function manualEntry(){
+            const mainDiv = document.querySelector('.main-card');
+            mainDiv.innerHTML = `<div class="top-bar"><div class="left-group"><button class="hamburger" id="backManualBtn">←</button></div><div class="title-container"><div class="main-title" style="font-size:1.2rem;">Saisie manuelle</div></div><div class="right-group"></div></div>
+            <div class="card"><div class="card-title">Ajouter une plage horaire</div><div class="time-input-group"><label>Type :</label><select id="manualType"><option value="work">Travail</option><option value="lunch">Pause déjeuner</option><option value="short">Pause courte</option></select></div>
+            <div class="time-input-group"><label>Début (HH:MM) :</label><input type="time" id="manualStart" value="09:00"></div>
+            <div class="time-input-group"><label>Fin (HH:MM) :</label><input type="time" id="manualEnd" value="12:00"></div>
+            <button class="btn btn-primary" id="addManualBtn">Ajouter</button>
+            <div class="card-title" style="margin-top:20px;">Ou remplacer le temps du jour</div>
+            <div class="time-input-group"><label>Nouveau temps travaillé (hh:mm:ss) :</label><input type="text" id="manualWorkTime" placeholder="00:00:00"></div>
+            <button class="btn btn-primary" id="setWorkTimeBtn">Appliquer</button></div>`;
+            document.getElementById('backManualBtn').onclick = () => location.reload();
+            document.getElementById('addManualBtn').onclick = () => {
+                if(locked){ showInfoModal("Déverrouillez l'écran"); return; }
+                const type = document.getElementById('manualType').value;
+                const startStr = document.getElementById('manualStart').value;
+                const endStr = document.getElementById('manualEnd').value;
+                if(!startStr||!endStr){ showInfoModal("Remplissez début et fin"); return; }
+                const start = new Date(`2000-01-01T${startStr}:00`);
+                const end = new Date(`2000-01-01T${endStr}:00`);
+                let diffSec = (end - start) / 1000;
+                if(diffSec < 0) diffSec += 24*3600;
+                if(diffSec <= 0){ showInfoModal("Fin après début"); return; }
+                if(type === 'work'){
+                    if(lunchRunning||shortPauseRunning){ showInfoModal("Arrêtez les pauses d'abord"); return; }
+                    workSeconds += diffSec;
+                    // Correction : recalculer workStartTimestamp après modification
+                    if(workStartTimestamp === null) {
+                        workStartTimestamp = Date.now() - (workSeconds * 1000);
+                    } else {
+                        workStartTimestamp = Date.now() - (workSeconds * 1000);
+                    }
+                } else if(type === 'lunch') lunchSeconds += diffSec;
+                else shortPauseSeconds += diffSec;
+                updateAllDisplays(); updateButtonsUI(); showInfoModal("Plage ajoutée"); saveStateToLocal();
+            };
+            document.getElementById('setWorkTimeBtn').onclick = () => {
+                if(locked){ showInfoModal("Déverrouillez l'écran"); return; }
+                const timeStr = document.getElementById('manualWorkTime').value;
+                const parts = timeStr.split(':');
+                if(parts.length !== 3){ showInfoModal("Format HH:MM:SS"); return; }
+                const h = parseInt(parts[0]), m = parseInt(parts[1]), s = parseInt(parts[2]);
+                if(isNaN(h)||isNaN(m)||isNaN(s)){ showInfoModal("Valeurs numériques"); return; }
+                const totalSec = h*3600 + m*60 + s;
+                workSeconds = totalSec;
+                // Correction : recalculer workStartTimestamp après modification
+                if(workStartTimestamp === null && workSeconds > 0) {
+                    workStartTimestamp = Date.now() - (workSeconds * 1000);
+                } else if (workSeconds > 0) {
+                    workStartTimestamp = Date.now() - (workSeconds * 1000);
+                } else {
+                    workStartTimestamp = null;
+                }
+                updateAllDisplays(); updateButtonsUI(); showInfoModal("Temps mis à jour"); saveStateToLocal();
+            };
+        }
+    }
+    function startApp(){
+        createModals();
+        loadPrefs();
+        loadLockPassword();
+        loadWorkRules();
+        const hasRules = localStorage.getItem('workRules') !== null;
+        if(!hasRules) showConfigPage(true);
+        else loadMainApp();
+    }
+    startApp();
+</script>
+</body>
+</html>
