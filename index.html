@@ -677,8 +677,10 @@
                         <div id="simpleModeFields">
                             <div class="welcome-group" id="ccnBlock" style="display:none; background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
                                 <label>Convention collective (optionnel) <span class="help-icon" data-help="Pré-remplit majorations, plage de nuit et heures sup selon votre convention de branche. Valeurs indicatives : vos accords d'entreprise ou votre contrat peuvent prévoir mieux.">ℹ️</span></label>
-                                <select id="wConvention" style="width:100%;"><option value="">— Choisir par nom ou n° IDCC —</option></select>
-                                <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="margin-top:10px; font-size:0.82rem; padding:8px 16px;">Appliquer les valeurs indicatives</button>
+                                <input list="ccnList" id="wConventionInput" class="input-number" placeholder="Tapez un nom ou un n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
+                                <datalist id="ccnList"></datalist>
+                                <p style="font-size:0.72rem; color:var(--text-secondary); margin:8px 0 0;">L'intitulé et le n° IDCC de votre convention figurent sur votre <strong>fiche de paie</strong> et sur votre contrat de travail.</p>
+                                <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs indicatives</button>
                             </div>
                             <div class="welcome-group"><label>Taux horaire brut (€) <span class="help-icon" data-help="Fiche de paie : ligne 'Salaire de base'.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${workRules.tauxBrut}"></div>
                             <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement ou modifiable manuellement.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${workRules.tauxNet}"></div>
@@ -860,22 +862,31 @@
             icon.addEventListener('click', (e) => { showInfoModal(icon.getAttribute('data-help')); e.stopPropagation(); });
         });
         // Conventions collectives : pré-remplissage indicatif
-        const ccnSelect = document.getElementById('wConvention');
+        const ccnInput = document.getElementById('wConventionInput');
         function populateCcn() {
-            if (!conventionsDB || !ccnSelect || ccnSelect.options.length > 1) return;
-            conventionsDB.conventions.forEach((c, i) => {
+            const dl = document.getElementById('ccnList');
+            if (!conventionsDB || !dl || dl.options.length > 0) return;
+            conventionsDB.conventions.forEach((c) => {
                 const opt = document.createElement('option');
-                opt.value = i;
-                opt.textContent = `${c.idcc} — ${c.name}`;
-                ccnSelect.appendChild(opt);
+                opt.value = `${c.idcc} — ${c.name}`;
+                dl.appendChild(opt);
             });
             document.getElementById('ccnBlock').style.display = 'block';
+        }
+        function findConvention(q) {
+            if (!conventionsDB) return null;
+            q = (q || '').trim().toLowerCase();
+            if (!q) return null;
+            const num = q.match(/^\d{2,5}/);
+            if (num) { const byId = conventionsDB.conventions.find(c => String(c.idcc) === num[0]); if (byId) return byId; }
+            return conventionsDB.conventions.find(c => c.name.toLowerCase().includes(q)) || null;
         }
         if (conventionsDB) populateCcn();
         else fetch('conventions.json').then(r => r.json()).then(db => { conventionsDB = db; populateCcn(); }).catch(() => {});
         document.getElementById('applyCcnBtn').onclick = () => {
-            if (ccnSelect.value === '') { showInfoModal("Choisissez d'abord une convention dans la liste."); return; }
-            const conv = conventionsDB.conventions[parseInt(ccnSelect.value)];
+            if (!ccnInput.value.trim()) { showInfoModal("Saisissez d'abord votre convention : tapez son n° IDCC (ex : 1979) ou un mot de son nom, puis choisissez dans les suggestions. Ces informations figurent sur votre fiche de paie."); return; }
+            const conv = findConvention(ccnInput.value);
+            if (!conv) { showInfoModal(`Convention non trouvée dans notre base (${conventionsDB ? conventionsDB.conventions.length : 0} référencées actuellement). Vous pouvez remplir les champs ci-dessous manuellement : les majorations applicables sont détaillées dans le texte de votre convention sur legifrance.gouv.fr. La base s'enrichit régulièrement.`); return; }
             const fset = conv.fields || {};
             const lines = [];
             if (fset.nightStart !== undefined && fset.nightEnd !== undefined) lines.push(`Plage de nuit : ${fset.nightStart} h → ${fset.nightEnd} h`);
@@ -1054,6 +1065,9 @@
                 <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Congés / RTT</div></div>
                 <div class="right-group"></div>
             </div>
+            <div class="card" style="padding:14px 18px;">
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin:0; line-height:1.5;"><strong style="color:var(--text-primary);">Comment ça marche :</strong> 1️⃣ renseignez une fois vos <strong>Paramètres congés</strong> en bas de page (votre solde actuel, lisible sur votre fiche de paie, et le mois correspondant) · 2️⃣ posez ici vos jours d'absence au fil de l'année. <br>Effets dans l'app : vos soldes CP/RTT se mettent à jour automatiquement (+2,08 j de CP acquis par mois), et chaque jour posé réduit la référence de votre <strong>solde d'heures</strong> sur l'accueil (1 jour = 1/5 de votre semaine contractuelle) — ainsi une semaine avec un jour de congé n'apparaît pas en déficit.</p>
+            </div>
             <div class="salary-row">
                 <div class="salary-card"><div class="salary-value" id="cpBalanceVal">–</div><div>Congés payés (j)</div></div>
                 <div class="salary-card"><div class="salary-value" id="rttBalanceVal">–</div><div>RTT (j)</div></div>
@@ -1068,10 +1082,10 @@
             </div>
             <div class="card">
                 <div class="card-title">Paramètres congés</div>
-                <div class="welcome-group"><label>Report initial CP (jours) <span class="help-icon" data-help="Votre solde de CP au début du comptage (voir fiche de paie).">ℹ️</span></label><input type="text" id="leaveCpInit" class="input-number" value="${leaveData.cpInit}"></div>
-                <div class="welcome-group"><label>Acquisition mensuelle CP (jours/mois)</label><input type="text" id="leaveCpMonthly" class="input-number" value="${leaveData.cpMonthly}"></div>
-                <div class="welcome-group"><label>Début du comptage (année-mois)</label><input type="month" id="leaveRefMonth" value="${leaveData.refMonth || ''}"></div>
-                <div class="welcome-group"><label>Solde initial RTT (jours)</label><input type="text" id="leaveRttInit" class="input-number" value="${leaveData.rttInit}"></div>
+                <div class="welcome-group"><label>Votre solde de CP actuel (jours) <span class="help-icon" data-help="Lisible sur votre dernière fiche de paie, ligne 'Congés' ou 'CP N / CP N-1'. L'app ajoutera ensuite 2,08 j par mois écoulé.">ℹ️</span></label><input type="text" id="leaveCpInit" class="input-number" value="${leaveData.cpInit}"></div>
+                <div class="welcome-group"><label>Mois de ce solde <span class="help-icon" data-help="Le mois de la fiche de paie où vous avez lu ce solde. L'acquisition mensuelle est comptée à partir de ce mois.">ℹ️</span></label><input type="month" id="leaveRefMonth" value="${leaveData.refMonth || ''}"></div>
+                <div class="welcome-group"><label>Acquisition mensuelle CP (jours/mois) <span class="help-icon" data-help="2,08 j/mois = 25 jours ouvrés par an (standard légal). 2,5 j/mois si votre entreprise compte en jours ouvrables (30 j/an).">ℹ️</span></label><input type="text" id="leaveCpMonthly" class="input-number" value="${leaveData.cpMonthly}"></div>
+                <div class="welcome-group"><label>Votre solde de RTT actuel (jours) <span class="help-icon" data-help="Laissez 0 si vous n'avez pas de RTT. Les RTT posés seront déduits de ce solde.">ℹ️</span></label><input type="text" id="leaveRttInit" class="input-number" value="${leaveData.rttInit}"></div>
                 <button class="btn btn-primary" id="saveLeaveBtn">Enregistrer</button>
                 <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:12px;">Les jours posés réduisent la référence du solde d'heures (1 jour = 1/5 de votre semaine contractuelle). Acquisition CP standard : 2,08 j/mois (25 j/an).</p>
             </div>
@@ -1591,7 +1605,9 @@
         const firstStart = segs.length ? new Date(segs[0].start).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
         const total = computeTotalSalary(rounded, workStartTimestamp);
         const dailyPrimes = getDailyPrimes();
-        let primesTotal = dailyPrimes.reduce((s,p)=> s + p.amount, 0);
+        // Primes journalières comptées une seule fois par jour, pas à chaque session
+        const dejaUneSessionCeJour = sessions.some(s => s && s.date === dateStr);
+        let primesTotal = dejaUneSessionCeJour ? 0 : dailyPrimes.reduce((s,p)=> s + p.amount, 0);
         const brutTotal = total.brut + primesTotal;
         const netTotal = total.net + primesTotal * (workRules.tauxNet / workRules.tauxBrut);
         const session = { date: dateStr, timeOfDay: timeStr, startTime: firstStart, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
@@ -1696,11 +1712,32 @@
         showInfoModal("Export CSV terminé");
     }
     function copyDayDetails() {
+        // Agrège les sessions déjà enregistrées aujourd'hui + le travail en cours
+        const todayStr = new Date().toLocaleDateString('fr-FR');
+        const todaySessions = sessions.filter(s => s && s.date === todayStr);
+        let secDone = 0, brutDone = 0, netDone = 0, mNuit = 0, mDim = 0, mFer = 0, mHS = 0;
+        for (const s of todaySessions) {
+            secDone += parseWorkTimeSec(s.workTime);
+            brutDone += parseFloat(s.brut) || 0;
+            netDone += parseFloat(s.net) || 0;
+            if (s.majDetails) { mNuit += s.majDetails.nuit || 0; mDim += s.majDetails.dimanche || 0; mFer += s.majDetails.ferie || 0; mHS += s.majDetails.hs || 0; }
+        }
         const rounded = getRoundedWorkSeconds();
-        const total = computeTotalSalary(rounded, workStartTimestamp);
+        const cur = computeTotalSalary(rounded, workStartTimestamp);
+        mNuit += cur.majNuit; mDim += cur.majDimanche; mFer += cur.majFerie; mHS += cur.majHS;
         const dailyPrimes = getDailyPrimes();
-        let primesText = dailyPrimes.length ? "\nPrimes journalières : " + dailyPrimes.map(p => `${p.name} : ${p.amount.toFixed(2)} €`).join(", ") : "";
-        const text = `TicTime - Détail du jour\n\nHeures travaillées (réel) : ${(workSeconds/3600).toFixed(2)} h\nHeures travaillées (arrondi) : ${(rounded/3600).toFixed(2)} h\nSalaire brut : ${total.brut.toFixed(2)} €\nSalaire net : ${total.net.toFixed(2)} €\nMajorations : Nuit ${total.majNuit.toFixed(2)}€, Dimanche ${total.majDimanche.toFixed(2)}€, Férié ${total.majFerie.toFixed(2)}€, HS ${total.majHS.toFixed(2)}€${primesText}\nTotal primes (jour) : ${dailyPrimes.reduce((s,p)=>s+p.amount,0).toFixed(2)} €\nTotal majorations : ${(total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2)} €`;
+        const primesTotal = dailyPrimes.reduce((a, p) => a + p.amount, 0);
+        const primesDejaIncluses = todaySessions.length > 0;
+        const netCoeff = workRules.tauxNet / workRules.tauxBrut;
+        const totBrut = brutDone + cur.brut + (primesDejaIncluses ? 0 : primesTotal);
+        const totNet = netDone + cur.net + (primesDejaIncluses ? 0 : primesTotal * netCoeff);
+        const f = (n) => n.toFixed(2).replace('.', ',') + ' €';
+        let text = `TicTime — Détail du jour (${todayStr})\n\n`;
+        text += `Sessions enregistrées : ${todaySessions.length} — ${formatTime(secDone)} — ${f(brutDone)} brut / ${f(netDone)} net\n`;
+        text += `En cours (non enregistré) : ${formatTime(workSeconds)} réel (${formatTime(rounded)} arrondi) — ${f(cur.brut)} brut\n`;
+        text += `Total du jour : ${formatTime(secDone + workSeconds)} — ${f(totBrut)} brut / ${f(totNet)} net\n\n`;
+        text += `Majorations du jour : Nuit ${f(mNuit)}, Dimanche ${f(mDim)}, Férié ${f(mFer)}, Heures sup. ${f(mHS)}\n`;
+        if (dailyPrimes.length) text += `Primes journalières : ${dailyPrimes.map(p => `${p.name} ${f(p.amount)}`).join(', ')}${primesDejaIncluses ? ' (déjà incluses dans les sessions)' : ''}\n`;
         navigator.clipboard.writeText(text).then(() => showInfoModal("Détail du jour copié dans le presse-papier")).catch(() => showInfoModal("Erreur lors de la copie"));
     }
     function exportPDFWithShare() {
@@ -2061,6 +2098,11 @@
     }
     function startApp(){
         createModals();
+        // Bulles d'aide ℹ️ : gestionnaire global, valable sur toutes les pages
+        document.addEventListener('click', (e) => {
+            const ic = e.target && e.target.closest ? e.target.closest('.help-icon') : null;
+            if (ic && ic.getAttribute('data-help')) { showInfoModal(ic.getAttribute('data-help')); e.stopPropagation(); }
+        });
         loadPrefs();
         loadLockPassword();
         loadWorkRules();

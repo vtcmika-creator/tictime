@@ -1,5 +1,5 @@
 // Service worker TicTime - cache hors-ligne
-const CACHE_NAME = 'tictime-v5';
+const CACHE_NAME = 'tictime-v6';
 const APP_SHELL = [
   './',
   './index.html',
