@@ -131,6 +131,13 @@
         .week-line.sub { font-size: 0.82rem; color: var(--text-secondary); }
         .bal-pos { color: #2E9E63; font-weight: 500; }
         .bal-neg { color: #D27F26; font-weight: 500; }
+        .back-btn { display: inline-flex; align-items: center; gap: 0; background: transparent; border: none; color: var(--accent); font-size: 0.95rem; font-weight: 500; cursor: pointer; padding: 8px 12px 8px 0; font-family: inherit; transition: var(--transition); }
+        .back-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+        .back-btn:active { opacity: 0.5; transform: translateX(-2px); }
+        .right-group #lockSwitchInput + .slider { background-color: #2E9E63; }
+        .right-group #lockSwitchInput:checked + .slider { background-color: #E5484D; }
+        .chart-sub { font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 10px; }
+        .modal-forgot { font-size: 0.8rem; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
         .maj-badge { display: inline-block; font-size: 0.72rem; font-weight: 500; padding: 4px 11px; border-radius: 100px; background: rgba(232, 148, 58, 0.16); color: #B26A1B; margin: 0 6px 10px 0; }
         body.dark .maj-badge { color: #F0A451; }
         body.dark .bal-neg { color: #F0A451; }
@@ -331,7 +338,7 @@
                 <div class="overlay" id="overlay"></div>
                 <div class="modal-info" id="infoModal"><p id="modalMsg"></p><button id="closeModalBtn">OK</button></div>
                 <div class="modal-confirm" id="confirmModal"><p id="confirmMessage"></p><div style="display:flex; gap:12px; justify-content:center;"><button id="confirmOkBtn">Oui</button><button id="confirmCancelBtn">Non</button></div></div>
-                <div class="modal-input" id="inputModal"><p id="inputLabel"></p><input type="password" id="inputField"><div style="display:flex; gap:12px; justify-content:center;"><button id="inputOkBtn">OK</button><button id="inputCancelBtn">Annuler</button></div></div>
+                <div class="modal-input" id="inputModal"><p id="inputLabel"></p><input type="password" id="inputField"><div class="modal-forgot" id="inputForgotLink" style="display:none;">Mot de passe oublié ?</div><div style="display:flex; gap:12px; justify-content:center;"><button id="inputOkBtn">OK</button><button id="inputCancelBtn">Annuler</button></div></div>
             `;
             document.body.appendChild(modalDiv);
         }
@@ -369,14 +376,42 @@
         document.getElementById('overlay').classList.add('active');
         pendingConfirmCallback = cb;
     }
-    function showInputModal(label, cb, def, inputType) {
+    function showInputModal(label, cb, def, inputType, showForgot) {
         document.getElementById('inputLabel').innerText = label;
         const field = document.getElementById('inputField');
         field.type = inputType || 'password';
         field.value = def || '';
+        const forgot = document.getElementById('inputForgotLink');
+        if (forgot) forgot.style.display = showForgot ? 'block' : 'none';
         document.getElementById('inputModal').classList.add('active');
         document.getElementById('overlay').classList.add('active');
         pendingInputCallback = cb;
+    }
+    // Mot de passe de verrouillage oublié : question secrète
+    function startForgotFlow() {
+        const q = localStorage.getItem('lockSecretQ');
+        const a = localStorage.getItem('lockSecretA');
+        if (!q || !a) {
+            showInfoModal("Aucune question secrète n'est configurée (Réglages → question secrète). Si vous vous êtes inscrit par e-mail, votre mot de passe de compte sert aussi au déverrouillage et peut être réinitialisé depuis l'écran de connexion.");
+            return;
+        }
+        showInputModal(q, (rep) => {
+            if (rep === null) return;
+            if (rep.trim().toLowerCase() === a) {
+                showInputModal("Nouveau mot de passe de verrouillage", (np) => {
+                    if (!np) return;
+                    saveLockPassword(np);
+                    locked = false;
+                    localStorage.setItem('lockedState', '0');
+                    const ls = document.getElementById('lockSwitchInput');
+                    if (ls) ls.checked = false;
+                    updateButtonsUI();
+                    showInfoModal("Mot de passe redéfini et écran déverrouillé.");
+                }, "", 'password');
+            } else {
+                showInfoModal("Réponse incorrecte.");
+            }
+        }, "", 'text');
     }
     function attachModalEvents() {
         const confirmOk = document.getElementById('confirmOkBtn');
@@ -390,6 +425,8 @@
         if (closeModal) closeModal.onclick = () => { window.closeInfoModal(); };
         if (inputOk) inputOk.onclick = () => { const val = document.getElementById('inputField').value; window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(val); pendingInputCallback = null; };
         if (inputCancel) inputCancel.onclick = () => { window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(null); pendingInputCallback = null; };
+        const inputForgot = document.getElementById('inputForgotLink');
+        if (inputForgot) inputForgot.onclick = () => { window.closeInputModal(); if (pendingInputCallback) { pendingInputCallback(null); pendingInputCallback = null; } setTimeout(startForgotFlow, 150); };
         if (overlay) overlay.onclick = () => { window.closeConfirmModal(); window.closeInputModal(); window.closeInfoModal(); if (pendingConfirmCallback) pendingConfirmCallback(false); if (pendingInputCallback) pendingInputCallback(null); pendingConfirmCallback = pendingInputCallback = null; document.getElementById('drawer')?.classList.remove('open'); };
     }
     // ---------- SAUVEGARDE / RESTAURATION AUTOMATIQUE ----------
@@ -1016,6 +1053,16 @@
                         <div class="settings-group" style="margin-bottom:20px;"><label>Mot de passe actuel</label><input type="password" id="currentPwd" class="input-number"></div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Nouveau mot de passe</label><input type="password" id="newPwd" class="input-number"></div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Confirmer le nouveau mot de passe</label><input type="password" id="confirmPwd" class="input-number"></div>
+                        <hr>
+                        <div class="card-title">Question secrète (mot de passe oublié) <span class="help-icon" data-help="Si vous oubliez le mot de passe de verrouillage, répondre à cette question permettra d'en définir un nouveau.">ℹ️</span></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Question</label><input type="text" id="secretQ" class="input-number" placeholder="ex : nom de mon premier animal" value="${(localStorage.getItem('lockSecretQ') || '').replace(/"/g, '&quot;')}"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Réponse</label><input type="text" id="secretA" class="input-number" placeholder="${localStorage.getItem('lockSecretA') ? 'Réponse définie — saisir pour modifier' : ''}"></div>
+                        <hr>
+                        <div class="card-title">Données</div>
+                        <button class="btn btn-secondary" id="resetDayBtn" style="display:block; width:100%;">Remettre la journée à zéro</button>
+                        <button class="btn btn-stop" id="wipeAllBtn" style="display:block; width:100%; margin-top:8px;">Effacer toutes les données de l'appareil</button>
+                        <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:8px;">"Journée à zéro" efface uniquement les compteurs du jour (l'historique est conservé). "Effacer toutes les données" supprime tout sur cet appareil — le compte et la sauvegarde cloud ne sont pas supprimés.</p>
+                        <hr>
                         <button class="btn btn-primary" id="saveSettingsBtn">Enregistrer</button>
                         <button class="btn btn-secondary" id="backToAppBtn" style="margin-top:12px;">Retour à l'application</button>
                     </div>
@@ -1052,16 +1099,169 @@
                     return;
                 }
             }
+            const sq = document.getElementById('secretQ').value.trim();
+            const sa = document.getElementById('secretA').value.trim();
+            if (sq) localStorage.setItem('lockSecretQ', sq);
+            if (sa) localStorage.setItem('lockSecretA', sa.toLowerCase());
             showInfoModal("Préférences enregistrées.");
         });
+        document.getElementById('resetDayBtn').addEventListener('click', () => {
+            customConfirm("Remettre la journée à zéro ? Les compteurs et le travail en cours d'aujourd'hui seront effacés. L'historique des sessions est conservé.", (ok) => {
+                if (!ok) return;
+                workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
+                workRunning = false; lunchRunning = false; shortPauseRunning = false;
+                workStartTimestamp = null; lastTimestamp = null; workSegments = [];
+                localStorage.removeItem('autoSaveState');
+                showInfoModal("Journée remise à zéro.");
+            });
+        });
+        document.getElementById('wipeAllBtn').addEventListener('click', () => {
+            customConfirm("Effacer TOUTES les données de cet appareil (historique, profil, congés, réglages) ? Cette action est définitive sur l'appareil. Le compte et la sauvegarde cloud ne sont pas touchés.", (ok) => {
+                if (!ok) return;
+                customConfirm("Dernière confirmation : tout supprimer ?", (ok2) => {
+                    if (!ok2) return;
+                    localStorage.clear();
+                    location.reload();
+                });
+            });
+        });
         document.getElementById('backToAppBtn').addEventListener('click', () => loadMainApp());
+    }
+    // ---------- PAGE CUMUL HEBDOMADAIRE ----------
+    function showWeeklyPage() {
+        const mainDiv = document.querySelector('.main-card');
+        const now = new Date();
+        const monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((now.getDay() + 6) % 7));
+        const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+        const todayStr = now.toLocaleDateString('fr-FR');
+        let rows = '', tSec = 0, tBrut = 0, tNet = 0, tMaj = 0;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i);
+            const ds = d.toLocaleDateString('fr-FR');
+            const isToday = ds === todayStr;
+            const isFuture = d > now && !isToday;
+            let sec = 0, b = 0, n = 0, m = 0;
+            sessions.filter(s => s && s.date === ds).forEach(s => {
+                sec += parseWorkTimeSec(s.workTime);
+                b += parseFloat(s.brut) || 0;
+                n += parseFloat(s.net) || 0;
+                m += parseFloat(s.majBrut) || 0;
+            });
+            if (isToday && workSeconds > 0) {
+                const rounded = getRoundedWorkSeconds();
+                const cur = computeTotalSalary(rounded, workStartTimestamp);
+                sec += workSeconds; b += cur.brut; n += cur.net;
+                m += cur.majNuit + cur.majDimanche + cur.majFerie + cur.majHS;
+            }
+            tSec += sec; tBrut += b; tNet += n; tMaj += m;
+            const leave = leaveData.days.find(x => x.date === toLocalISO(d));
+            const left = `${dayNames[i]} ${d.getDate()}${isToday ? ' · aujourd’hui' : ''}${leave ? ' · ' + leave.type : ''}`;
+            const right = sec > 0 ? `${formatTime(sec)} — ${b.toFixed(2).replace('.', ',')} € brut` : (leave ? 'Absence' : '—');
+            rows += `<div class="maj-line" style="${isToday ? 'font-weight:600;' : ''}${isFuture ? 'opacity:0.4;' : ''}"><span>${left}</span><span style="font-variant-numeric:tabular-nums;">${right}</span></div>`;
+        }
+        const f = (v) => v.toFixed(2).replace('.', ',');
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="back-btn" id="backWeeklyBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Cumul hebdomadaire</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="salary-row">
+                <div class="salary-card"><div class="salary-value" style="font-size:1.2rem;">${formatTime(tSec)}</div><div>Heures</div></div>
+                <div class="salary-card"><div class="salary-value brut" style="font-size:1.2rem;">${f(tBrut)} €</div><div>Brut</div></div>
+                <div class="salary-card"><div class="salary-value net" style="font-size:1.2rem;">${f(tNet)} €</div><div>Net</div></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Semaine du ${monday.toLocaleDateString('fr-FR')} — dont majorations : ${f(tMaj)} € brut</div>
+                ${rows}
+                <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:10px;">Journée en cours incluse en temps réel. Le brut inclut majorations et primes journalières.</p>
+            </div>
+        `;
+        document.getElementById('backWeeklyBtn').onclick = () => loadMainApp();
+    }
+    // ---------- AUTHENTIFICATION (COMPTE OBLIGATOIRE) ----------
+    function authErrMsg(err) {
+        const c = (err && err.code) || '';
+        if (c.includes('email-already-in-use')) return "Un compte existe déjà avec cet e-mail. Utilisez « Se connecter ».";
+        if (c.includes('invalid-email')) return "Adresse e-mail invalide.";
+        if (c.includes('weak-password')) return "Mot de passe trop faible : 6 caractères minimum.";
+        if (c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential') || c.includes('invalid-login')) return "E-mail ou mot de passe incorrect.";
+        if (c.includes('too-many-requests')) return "Trop de tentatives. Réessayez dans quelques minutes.";
+        if (c.includes('network')) return "Pas de connexion internet.";
+        return "Erreur : " + ((err && err.message) || c);
+    }
+    function proceedAfterAuth() {
+        const hasRules = localStorage.getItem('workRules') !== null;
+        if (!hasRules) showConfigPage(true); else loadMainApp();
+    }
+    function showAuthPage(mode) {
+        const isSignup = mode === 'signup';
+        const root = document.getElementById('appRoot');
+        root.innerHTML = `
+            <div class="app" style="justify-content:center;">
+                <div class="main-card" style="max-width:430px; justify-content:center;">
+                    <div class="card" style="padding:28px 22px;">
+                        <div class="main-title logo-mark" style="font-size:1.8rem; margin-bottom:6px;">${LOGO_HTML}</div>
+                        <p style="text-align:center; color:var(--text-secondary); font-size:0.85rem; margin-bottom:20px;">${isSignup ? "Créez votre compte : il sécurise l'app et synchronise vos données entre vos appareils." : "Connectez-vous pour ouvrir l'application."}</p>
+                        <div class="welcome-group"><label>E-mail</label><input type="email" id="authEmail" class="input-number" autocomplete="email"></div>
+                        <div class="welcome-group"><label>Mot de passe ${isSignup ? '<span class="help-icon" data-help="6 caractères minimum. Ce mot de passe servira aussi à verrouiller/déverrouiller l\\'écran de l\\'app.">ℹ️</span>' : ''}</label><input type="password" id="authPwd" class="input-number" autocomplete="${isSignup ? 'new-password' : 'current-password'}"></div>
+                        ${isSignup ? `
+                        <div class="welcome-group"><label>Confirmez le mot de passe</label><input type="password" id="authPwd2" class="input-number" autocomplete="new-password"></div>
+                        <div class="welcome-group"><label>Question secrète <span class="help-icon" data-help="Permet de redéfinir le mot de passe de verrouillage de l'écran si vous l'oubliez.">ℹ️</span></label><input type="text" id="authSecretQ" class="input-number" placeholder="ex : nom de mon premier animal"></div>
+                        <div class="welcome-group"><label>Réponse secrète</label><input type="text" id="authSecretA" class="input-number"></div>` : ''}
+                        <button class="btn btn-primary" id="authSubmitBtn" style="display:block; width:100%;">${isSignup ? 'Créer mon compte' : 'Se connecter'}</button>
+                        ${!isSignup ? '<div class="forgot-link" id="authForgotBtn" style="text-align:center;">Mot de passe oublié ?</div>' : ''}
+                        <div style="display:flex; align-items:center; gap:10px; margin:18px 0;"><div style="flex:1; height:1px; background:var(--border-light);"></div><span style="font-size:0.75rem; color:var(--text-secondary);">ou</span><div style="flex:1; height:1px; background:var(--border-light);"></div></div>
+                        <button class="btn btn-secondary" id="authGoogleBtn" style="display:block; width:100%;">Continuer avec Google</button>
+                        <p style="text-align:center; font-size:0.85rem; margin-top:18px; color:var(--text-secondary);">${isSignup ? 'Déjà un compte ?' : 'Pas encore de compte ?'} <span id="authSwitchBtn" style="color:var(--accent); cursor:pointer; text-decoration:underline; text-underline-offset:3px;">${isSignup ? 'Se connecter' : 'Créer un compte'}</span></p>
+                    </div>
+                </div>
+            </div>`;
+        document.getElementById('authSwitchBtn').onclick = () => showAuthPage(isSignup ? 'login' : 'signup');
+        document.getElementById('authGoogleBtn').onclick = () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            fbAuth.signInWithPopup(provider).catch(err => showInfoModal(authErrMsg(err)));
+        };
+        if (!isSignup) {
+            document.getElementById('authForgotBtn').onclick = () => {
+                const em = document.getElementById('authEmail').value.trim();
+                if (!em) { showInfoModal("Saisissez d'abord votre e-mail ci-dessus, puis retouchez « Mot de passe oublié ? ». Un lien de réinitialisation vous sera envoyé."); return; }
+                fbAuth.sendPasswordResetEmail(em)
+                    .then(() => showInfoModal("E-mail de réinitialisation envoyé à " + em + ". Vérifiez aussi vos spams."))
+                    .catch(err => showInfoModal(authErrMsg(err)));
+            };
+        }
+        document.getElementById('authSubmitBtn').onclick = () => {
+            const em = document.getElementById('authEmail').value.trim();
+            const pwd = document.getElementById('authPwd').value;
+            if (!em || !pwd) { showInfoModal("Saisissez votre e-mail et votre mot de passe."); return; }
+            const btn = document.getElementById('authSubmitBtn');
+            btn.disabled = true;
+            if (isSignup) {
+                const pwd2 = document.getElementById('authPwd2').value;
+                const sq = document.getElementById('authSecretQ').value.trim();
+                const sa = document.getElementById('authSecretA').value.trim();
+                if (pwd !== pwd2) { showInfoModal("Les mots de passe ne correspondent pas."); btn.disabled = false; return; }
+                if (pwd.length < 6) { showInfoModal("Mot de passe : 6 caractères minimum."); btn.disabled = false; return; }
+                if (!sq || !sa) { showInfoModal("Renseignez la question et la réponse secrètes (elles servent en cas d'oubli du mot de passe de verrouillage)."); btn.disabled = false; return; }
+                fbAuth.createUserWithEmailAndPassword(em, pwd).then(() => {
+                    saveLockPassword(pwd);
+                    localStorage.setItem('lockSecretQ', sq);
+                    localStorage.setItem('lockSecretA', sa.toLowerCase());
+                }).catch(err => { showInfoModal(authErrMsg(err)); btn.disabled = false; });
+            } else {
+                fbAuth.signInWithEmailAndPassword(em, pwd).then(() => {
+                    saveLockPassword(pwd);
+                }).catch(err => { showInfoModal(authErrMsg(err)); btn.disabled = false; });
+            }
+        };
     }
     // ---------- PAGE CONGÉS / RTT ----------
     function showLeavePage() {
         const mainDiv = document.querySelector('.main-card');
         mainDiv.innerHTML = `
             <div class="top-bar">
-                <div class="left-group"><button class="hamburger" id="backLeaveBtn">←</button></div>
+                <div class="left-group"><button class="back-btn" id="backLeaveBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
                 <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Congés / RTT</div></div>
                 <div class="right-group"></div>
             </div>
@@ -1135,7 +1335,7 @@
         const monthNames = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
         mainDiv.innerHTML = `
             <div class="top-bar">
-                <div class="left-group"><button class="hamburger" id="backPayBtn">←</button></div>
+                <div class="left-group"><button class="back-btn" id="backPayBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
                 <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Comparateur de paie</div></div>
                 <div class="right-group"></div>
             </div>
@@ -1207,7 +1407,7 @@
         const mainDiv = document.querySelector('.main-card');
         mainDiv.innerHTML = `
             <div class="top-bar">
-                <div class="left-group"><button class="hamburger" id="backCloudBtn">←</button></div>
+                <div class="left-group"><button class="back-btn" id="backCloudBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
                 <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Cloud</div></div>
                 <div class="right-group"></div>
             </div>
@@ -1354,60 +1554,91 @@
         const mainDiv = document.querySelector('.main-card');
         mainDiv.innerHTML = `
             <div class="top-bar">
-                <div class="left-group"><button class="hamburger" id="backStatsBtn">←</button></div>
+                <div class="left-group"><button class="back-btn" id="backStatsBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
                 <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Statistiques</div></div>
                 <div class="right-group"></div>
             </div>
             <div class="stats-summary" id="statsSummary">Calcul en cours...</div>
             <div id="statsContent" class="stats-charts">
-                <div class="chart-container"><canvas id="hoursBarChart"></canvas></div>
-                <div class="chart-container"><canvas id="salaryLineChart"></canvas></div>
-                <div class="chart-container"><canvas id="majStackedChart"></canvas></div>
-                <div class="chart-container"><canvas id="dailyPrimesChart"></canvas></div>
+                <div class="chart-container"><div class="card-title" style="margin-bottom:2px;">Heures travaillées</div><div class="chart-sub">par jour, 7 derniers jours (journée en cours incluse)</div><canvas id="hoursBarChart"></canvas></div>
+                <div class="chart-container"><div class="card-title" style="margin-bottom:2px;">Salaire net estimé</div><div class="chart-sub">en € par jour</div><canvas id="salaryLineChart"></canvas></div>
+                <div class="chart-container"><div class="card-title" style="margin-bottom:2px;">Majorations</div><div class="chart-sub">en € brut par jour : nuit, dimanche, férié, heures sup.</div><canvas id="majStackedChart"></canvas></div>
+                <div class="chart-container"><div class="card-title" style="margin-bottom:2px;">Primes journalières</div><div class="chart-sub">en € par jour</div><canvas id="dailyPrimesChart"></canvas></div>
             </div>
-            <div class="today-btn" id="todayStatsBtn">Aujourd'hui</div>
         `;
         document.getElementById('backStatsBtn').onclick = () => loadMainApp();
         function refreshStats() {
             const last7 = [];
             const today = new Date();
+            const todayStr = today.toLocaleDateString('fr-FR');
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
                 const dateStr = d.toLocaleDateString('fr-FR');
-                const session = sessions.find(s => s.date === dateStr);
-                let hours = 0, brut = 0, majNuit = 0, majDim = 0, majFerie = 0, majHS = 0, dailyPrimeTotal = 0;
-                if (session) {
-                    const parts = session.workTime.split(':');
-                    hours = parseFloat(parts[0]) + parseFloat(parts[1])/60 + parseFloat(parts[2])/3600;
-                    brut = parseFloat(session.brut);
-                    majNuit = session.majDetails?.nuit || 0;
-                    majDim = session.majDetails?.dimanche || 0;
-                    majFerie = session.majDetails?.ferie || 0;
-                    majHS = session.majDetails?.hs || 0;
-                    if (dateStr === today.toLocaleDateString('fr-FR')) {
-                        dailyPrimeTotal = getDailyPrimes().reduce((s,p)=> s + p.amount, 0);
-                    }
+                let hours = 0, net = 0, majNuit = 0, majDim = 0, majFerie = 0, majHS = 0, primes = 0;
+                sessions.filter(s => s && s.date === dateStr).forEach(s => {
+                    hours += parseWorkTimeSec(s.workTime) / 3600;
+                    net += parseFloat(s.net) || 0;
+                    if (s.majDetails) { majNuit += s.majDetails.nuit || 0; majDim += s.majDetails.dimanche || 0; majFerie += s.majDetails.ferie || 0; majHS += s.majDetails.hs || 0; }
+                });
+                if (dateStr === todayStr && workSeconds > 0) {
+                    const rounded = getRoundedWorkSeconds();
+                    const cur = computeTotalSalary(rounded, workStartTimestamp);
+                    hours += workSeconds / 3600;
+                    net += cur.net;
+                    majNuit += cur.majNuit; majDim += cur.majDimanche; majFerie += cur.majFerie; majHS += cur.majHS;
                 }
-                last7.push({ date: dateStr, hours, brut, majNuit, majDim, majFerie, majHS, dailyPrimeTotal });
+                if (hours > 0 && dateStr === todayStr) primes = getDailyPrimes().reduce((s, p) => s + p.amount, 0);
+                const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+                last7.push({ label, hours: Math.round(hours * 100) / 100, net: Math.round(net * 100) / 100, majNuit, majDim, majFerie, majHS, primes });
             }
-            const avgHours = last7.reduce((s,d)=> s + d.hours, 0) / 7;
-            document.getElementById('statsSummary').innerHTML = `Moyenne d'heures par jour (7j) : ${avgHours.toFixed(2)} h | Projection mensuelle : ${(avgHours * 21.67).toFixed(2)} h | Salaire mensuel estimé : ${(avgHours * 21.67 * (workRules.tauxBrut)).toFixed(2)} € brut`;
-            const ctxBar = document.getElementById('hoursBarChart').getContext('2d');
-            const ctxLine = document.getElementById('salaryLineChart').getContext('2d');
-            const ctxStack = document.getElementById('majStackedChart').getContext('2d');
-            const ctxPrimes = document.getElementById('dailyPrimesChart').getContext('2d');
+            const hasData = last7.some(d => d.hours > 0);
+            const statsContent = document.getElementById('statsContent');
+            if (!hasData) {
+                document.getElementById('statsSummary').innerText = "Aucune donnée sur les 7 derniers jours. Lancez le compteur, ou ajoutez vos heures via Saisie manuelle.";
+                statsContent.style.display = 'none';
+                return;
+            }
+            statsContent.style.display = 'flex';
+            const workedDays = last7.filter(d => d.hours > 0).length;
+            const totH = last7.reduce((s, d) => s + d.hours, 0);
+            const totNet = last7.reduce((s, d) => s + d.net, 0);
+            document.getElementById('statsSummary').innerHTML = `7 derniers jours : <strong>${totH.toFixed(1).replace('.', ',')} h</strong> sur ${workedDays} jour(s) travaillé(s) · <strong>${totNet.toFixed(2).replace('.', ',')} € net</strong> estimé`;
+            const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0A84FF';
+            const textCol = getComputedStyle(document.body).getPropertyValue('--text-secondary').trim() || '#6B7A90';
+            const baseScales = (unit) => ({ x: { ticks: { color: textCol } }, y: { beginAtZero: true, ticks: { color: textCol }, title: { display: true, text: unit, color: textCol } } });
             if (window.barChart) window.barChart.destroy();
             if (window.lineChart) window.lineChart.destroy();
             if (window.stackedChart) window.stackedChart.destroy();
             if (window.primesChart) window.primesChart.destroy();
-            window.barChart = new Chart(ctxBar, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Heures travaillées', data:last7.map(d=>d.hours), backgroundColor:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1E4A6F' }] } });
-            window.lineChart = new Chart(ctxLine, { type:'line', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Salaire brut (€)', data:last7.map(d=>d.brut), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1E4A6F', fill:false, tension:0.3 }] } });
-            window.stackedChart = new Chart(ctxStack, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Nuit', data:last7.map(d=>d.majNuit), backgroundColor:'#F59E0B', stack:'stack0' },{ label:'Dimanche', data:last7.map(d=>d.majDim), backgroundColor:'#3B82F6', stack:'stack0' },{ label:'Férié', data:last7.map(d=>d.majFerie), backgroundColor:'#10B981', stack:'stack0' },{ label:'HS', data:last7.map(d=>d.majHS), backgroundColor:'#EF4444', stack:'stack0' }] }, options:{ responsive:true, scales:{ x:{ stacked:true }, y:{ stacked:true, title:{ display:true, text:'Montant (€)' } } } } });
-            window.primesChart = new Chart(ctxPrimes, { type:'bar', data:{ labels:last7.map(d=>d.date), datasets:[{ label:'Total primes journalières (€)', data:last7.map(d=>d.dailyPrimeTotal), backgroundColor:'#10B981' }] }, options:{ responsive:true, scales:{ y:{ title:{ display:true, text:'Montant (€)' } } } } });
+            const labels = last7.map(d => d.label);
+            window.barChart = new Chart(document.getElementById('hoursBarChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [{ data: last7.map(d => d.hours), backgroundColor: accent, borderRadius: 6 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: baseScales('heures') }
+            });
+            window.lineChart = new Chart(document.getElementById('salaryLineChart').getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets: [{ data: last7.map(d => d.net), borderColor: '#2E9E63', backgroundColor: 'rgba(46,158,99,0.12)', fill: true, tension: 0.35, pointRadius: 3 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: baseScales('€ net') }
+            });
+            window.stackedChart = new Chart(document.getElementById('majStackedChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [
+                    { label: 'Nuit', data: last7.map(d => d.majNuit), backgroundColor: '#5B6ED8', stack: 's', borderRadius: 3 },
+                    { label: 'Dimanche', data: last7.map(d => d.majDim), backgroundColor: '#0A84FF', stack: 's', borderRadius: 3 },
+                    { label: 'Férié', data: last7.map(d => d.majFerie), backgroundColor: '#2E9E63', stack: 's', borderRadius: 3 },
+                    { label: 'Heures sup.', data: last7.map(d => d.majHS), backgroundColor: '#E8943A', stack: 's', borderRadius: 3 }
+                ] },
+                options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textCol, boxWidth: 14, font: { size: 11 } } } }, scales: { x: { stacked: true, ticks: { color: textCol } }, y: { stacked: true, beginAtZero: true, ticks: { color: textCol }, title: { display: true, text: '€ brut', color: textCol } } } }
+            });
+            window.primesChart = new Chart(document.getElementById('dailyPrimesChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [{ data: last7.map(d => d.primes), backgroundColor: '#E8943A', borderRadius: 6 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: baseScales('€') }
+            });
         }
         refreshStats();
-        document.getElementById('todayStatsBtn').addEventListener('click', refreshStats);
     }
     // ---------- APPLICATION PRINCIPALE ----------
     function loadMainApp() {
@@ -1415,6 +1646,7 @@
         loadPrefs();
         loadLockPassword();
         loadLeaveData();
+        locked = localStorage.getItem('lockedState') === '1';
         // Render main app first
         renderMainApp();
         // Then restore auto-save state (DOM now exists)
@@ -1859,7 +2091,7 @@
                     <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuPayCompare"><span class="mono-icon">⚖️</span> Comparateur de paie</div><div class="menu-item" id="menuLeave"><span class="mono-icon">🌴</span> Congés / RTT</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
                     <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
                     <div class="menu-section"><div class="menu-section-title">Données</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Bilan mensuel PDF</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuExport"><span class="mono-icon">📦</span> Exporter JSON</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div></div>
-                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div><div class="menu-item" id="menuLogout"><span class="mono-icon">🚪</span> Se déconnecter</div></div>
                 </div>
             </div>
         `;
@@ -1881,7 +2113,23 @@
         document.getElementById('weekCard').onclick = () => { if (!locked) showStats(); };
         document.getElementById('forgotLink').onclick = () => { if (!locked) manualEntry(); };
         const lockSwitch = document.getElementById('lockSwitchInput');
-        lockSwitch.addEventListener('change', (e) => { if (e.target.checked) { locked = true; updateButtonsUI(); showInfoModal("Écran verrouillé."); } else { showInputModal("Mot de passe pour déverrouiller", (pwd) => { if (pwd === lockPassword) { locked = false; updateButtonsUI(); showInfoModal("Écran déverrouillé."); lockSwitch.checked = false; } else { showInfoModal("Mot de passe incorrect."); lockSwitch.checked = true; locked = true; updateButtonsUI(); } }, ""); } });
+        lockSwitch.checked = locked;
+        lockSwitch.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                locked = true; localStorage.setItem('lockedState', '1');
+                updateButtonsUI(); showInfoModal("Écran verrouillé.");
+            } else {
+                showInputModal("Mot de passe pour déverrouiller", (pwd) => {
+                    if (pwd === lockPassword) {
+                        locked = false; localStorage.setItem('lockedState', '0');
+                        updateButtonsUI(); showInfoModal("Écran déverrouillé."); lockSwitch.checked = false;
+                    } else {
+                        if (pwd !== null) showInfoModal("Mot de passe incorrect.");
+                        lockSwitch.checked = true; locked = true; updateButtonsUI();
+                    }
+                }, "", 'password', true);
+            }
+        });
         document.getElementById('menuProfile').onclick = () => { closeDrawer(); showConfigPage(false); };
         document.getElementById('menuStats').onclick = () => { closeDrawer(); showStats(); };
         document.getElementById('menuPayCompare').onclick = () => { closeDrawer(); showPayComparePage(); };
@@ -1896,30 +2144,28 @@
         document.getElementById('menuExportCSV').onclick = () => { closeDrawer(); exportCSV(); };
         document.getElementById('menuCopyDay').onclick = () => { closeDrawer(); copyDayDetails(); };
         document.getElementById('menuImportJSON').onclick = () => { closeDrawer(); importJSON(); };
-        document.getElementById('menuWeekly').onclick = () => { closeDrawer(); showWeeklyCumul(); };
+        document.getElementById('menuWeekly').onclick = () => { closeDrawer(); showWeeklyPage(); };
         document.getElementById('menuExport').onclick = () => { closeDrawer(); exportJSON(); };
         document.getElementById('menuExportPDF').onclick = () => { closeDrawer(); exportPDFWithShare(); };
         document.getElementById('menuHelp').onclick = () => { closeDrawer(); openHelp(); };
         document.getElementById('menuAbout').onclick = () => { showInfoModal("TicTime v3.0"); };
+        const menuLogout = document.getElementById('menuLogout');
+        if (!cloudConfigured) menuLogout.style.display = 'none';
+        menuLogout.onclick = () => {
+            closeDrawer();
+            customConfirm("Se déconnecter ? Vos données restent enregistrées sur cet appareil et vous les retrouverez à la prochaine connexion.", (ok) => {
+                if (ok && fbAuth) fbAuth.signOut();
+            });
+        };
         renderHistory();
         updateButtonsUI();
         function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); document.getElementById('overlay').classList.remove('active'); }
-        function showWeeklyCumul(){
-            let totalHeures=0,totalBrut=0,totalNet=0,totalMaj=0;
-            const today=new Date();
-            const curRounded=getRoundedWorkSeconds();
-            const curTotal = computeTotalSalary(curRounded, workStartTimestamp);
-            const curPrimes = getDailyPrimes().reduce((s,p)=> s + p.amount, 0);
-            if(curRounded>0 || lunchSeconds>0 || shortPauseSeconds>0){ totalHeures+=curRounded/3600; totalBrut+=curTotal.brut + curPrimes; totalNet+=curTotal.net + curPrimes * (workRules.tauxNet / workRules.tauxBrut); totalMaj+=curTotal.majNuit+curTotal.majDimanche+curTotal.majFerie+curTotal.majHS; }
-            for(let i=1;i<=6;i++){ const d=new Date(); d.setDate(today.getDate()-i); const dateStr=d.toLocaleDateString('fr-FR'); const s=sessions.find(s=>s.date===dateStr); if(s){ totalHeures+=parseFloat(s.workTime.split(':')[0])+parseFloat(s.workTime.split(':')[1])/60+parseFloat(s.workTime.split(':')[2])/3600; totalBrut+=parseFloat(s.brut); totalNet+=parseFloat(s.net); totalMaj+=parseFloat(s.majBrut); } }
-            showInfoModal(`Cumul 7 jours :\nHeures: ${totalHeures.toFixed(2)} h\nBrut: ${totalBrut.toFixed(2)} €\nNet: ${totalNet.toFixed(2)} €\nMajorations: ${totalMaj.toFixed(2)} €`);
-        }
         function exportJSON(){ const dataStr=JSON.stringify(sessions,null,2); const blob=new Blob([dataStr],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download="historique_salaire.json"; a.click(); URL.revokeObjectURL(url); showInfoModal("Export JSON terminé"); }
         function openHelp() {
             const mainDiv = document.querySelector('.main-card');
             mainDiv.innerHTML = `
                 <div class="top-bar">
-                    <div class="left-group"><button class="hamburger" id="backHelpBtn">←</button></div>
+                    <div class="left-group"><button class="back-btn" id="backHelpBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
                     <div class="title-container"><div class="main-title" style="font-size:1.2rem; text-align:center;">Aide & Guide</div></div>
                     <div class="right-group"></div>
                 </div>
@@ -2021,7 +2267,7 @@
                             <li>Un graphique du total des primes journalières.</li>
                             <li>La moyenne d’heures par jour, la projection mensuelle et le salaire mensuel estimé.</li>
                         </ul>
-                        <p>Le bouton "Aujourd’hui" permet de rafraîchir les graphiques (utile après ajout d’une session manuelle).</p>
+                        <p>La journée en cours est incluse en temps réel dans les graphiques.</p>
                     </details>
                     <details class="help-section">
                         <summary>Sauvegarde automatique et fermeture</summary>
@@ -2047,7 +2293,7 @@
         }
         function manualEntry(){
             const mainDiv = document.querySelector('.main-card');
-            mainDiv.innerHTML = `<div class="top-bar"><div class="left-group"><button class="hamburger" id="backManualBtn">←</button></div><div class="title-container"><div class="main-title" style="font-size:1.2rem;">Saisie manuelle</div></div><div class="right-group"></div></div>
+            mainDiv.innerHTML = `<div class="top-bar"><div class="left-group"><button class="back-btn" id="backManualBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div><div class="title-container"><div class="main-title" style="font-size:1.2rem;">Saisie manuelle</div></div><div class="right-group"></div></div>
             <div class="card"><div class="card-title">Ajouter une plage horaire</div><div class="time-input-group"><label>Type :</label><select id="manualType"><option value="work">Travail</option><option value="lunch">Pause déjeuner</option><option value="short">Pause courte</option></select></div>
             <div class="time-input-group"><label>Début (HH:MM) :</label><input type="time" id="manualStart" value="09:00"></div>
             <div class="time-input-group"><label>Fin (HH:MM) :</label><input type="time" id="manualEnd" value="12:00"></div>
@@ -2106,9 +2352,16 @@
         loadPrefs();
         loadLockPassword();
         loadWorkRules();
-        const hasRules = localStorage.getItem('workRules') !== null;
-        if(!hasRules) showConfigPage(true);
-        else loadMainApp();
+        if (cloudConfigured) {
+            // Compte obligatoire : page de connexion tant qu'aucun utilisateur n'est connecté
+            fbAuth.onAuthStateChanged((user) => {
+                if (user) proceedAfterAuth();
+                else showAuthPage(localStorage.getItem('workRules') !== null ? 'login' : 'signup');
+            });
+        } else {
+            // Hors-ligne au tout premier lancement (Firebase non chargé) : accès local direct
+            proceedAfterAuth();
+        }
     }
     startApp();
     // ---------- PWA : enregistrement du service worker ----------
