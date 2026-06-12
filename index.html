@@ -1581,6 +1581,7 @@
     function checkDateChange() { const today=new Date().toDateString(); if(today!==currentDate){ resetAtMidnight(); currentDate=today; showInfoModal("Nouvelle journée - compteurs remis à zéro"); } }
     function resetAtMidnight() { if(workSeconds||lunchSeconds||shortPauseSeconds) saveSessionToHistory(); workSeconds=lunchSeconds=shortPauseSeconds=0; workRunning=lunchRunning=shortPauseRunning=false; workStartTimestamp=lastTimestamp=null; workSegments=[]; updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function saveSessionToHistory() {
+        tick();
         const rounded=getRoundedWorkSeconds();
         if(rounded===0 && lunchSeconds===0 && shortPauseSeconds===0) return;
         const now=new Date(), dateStr=now.toLocaleDateString('fr-FR'), timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -1676,8 +1677,8 @@
         }
     }
     function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; openSegment(); lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
-    function toggleLunch(){ if(locked) return; if(lunchRunning){ lunchRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
-    function toggleShortPause(){ if(locked) return; if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function toggleLunch(){ if(locked) return; tick(); if(lunchRunning){ lunchRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function toggleShortPause(){ if(locked) return; tick(); if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }); }
     // Exports (CSV, copy, PDF)
     function exportCSV() {
