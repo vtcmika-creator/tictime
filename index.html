@@ -119,6 +119,22 @@
         .hero-card { text-align: center; padding: 26px 20px; }
         .date-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; }
         .hero-timer { font-size: 3.3rem; font-weight: 300; letter-spacing: -1.5px; line-height: 1.15; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .status-row { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; }
+        .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .status-dot.running { background: #2E9E63; animation: pulse 2s ease-in-out infinite; }
+        .status-dot.paused { background: #E8943A; }
+        .status-dot.stopped { background: #98A2B0; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .eta-label { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .forgot-link { font-size: 0.78rem; color: var(--accent); margin-top: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+        .week-line { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.92rem; padding: 3px 0; font-variant-numeric: tabular-nums; }
+        .week-line.sub { font-size: 0.82rem; color: var(--text-secondary); }
+        .bal-pos { color: #2E9E63; font-weight: 500; }
+        .bal-neg { color: #D27F26; font-weight: 500; }
+        .maj-badge { display: inline-block; font-size: 0.72rem; font-weight: 500; padding: 4px 11px; border-radius: 100px; background: rgba(232, 148, 58, 0.16); color: #B26A1B; margin: 0 6px 10px 0; }
+        body.dark .maj-badge { color: #F0A451; }
+        body.dark .bal-neg { color: #F0A451; }
+        body.dark .bal-pos { color: #41C98A; }
         .card-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
         .card-title { font-weight: 500; color: var(--text-secondary); font-size: 0.88rem; letter-spacing: 0; margin-bottom: 12px; }
         .counter-value { font-size: 1.7rem; font-weight: 500; color: var(--text-primary); margin: 8px 0; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
@@ -255,6 +271,7 @@
             { name: "Personnalisée", enabled: false, period: "monthly", amount: 0, customName: "" }
         ],
         thirteenthMonth: { enabled: false, type: "once", amount: 0, month: 11 },
+        weeklyContractHours: 35,
         monthlyContractHours: 151.67,
         holidaysList: []
     };
@@ -618,6 +635,7 @@
                             <div class="welcome-group"><label>Statut <span class="help-icon" data-help="Contrat de travail ou fiche de paie.">ℹ️</span></label><select id="wStatut" class="time-input-group select"><option value="Non-cadre" ${workRules.statut==="Non-cadre"?"selected":""}>Non-cadre</option><option value="Cadre" ${workRules.statut==="Cadre"?"selected":""}>Cadre</option></select></div>
                             <div class="welcome-group"><label>Seuil heures supplémentaires (heures/jour) <span class="help-icon" data-help="Convention collective ou contrat.">ℹ️</span></label><input type="text" id="wOvertimeThreshold" class="input-number" value="${workRules.overtimeThreshold}"></div>
                             <div class="welcome-group"><label>Majoration heures supplémentaires (%)</label><input type="text" id="wOvertimeRate" class="input-number" value="${workRules.overtimeRate*100}"></div>
+                            <div class="welcome-group"><label>Heures hebdomadaires contractuelles <span class="help-icon" data-help="Sert au calcul du solde d'heures (déficit/excédent) affiché sur l'accueil. Ex : 35.">ℹ️</span></label><input type="text" id="wWeeklyContractHours" class="input-number" value="${workRules.weeklyContractHours || 35}"></div>
                             <div class="welcome-group"><label>Plage nuit (de – à)</label><div style="display:flex; gap:8px;"><input type="text" id="wNightStart" class="input-number" value="${workRules.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${workRules.nightEnd}" style="flex:1;"> h</div></div>
                             <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${workRules.nightRate*100}"></div>
                             <div class="inline-switch"><span>Dimanche travaillé</span><label class="switch"><input type="checkbox" id="wSundayEnabled" ${workRules.sundayEnabled?"checked":""}><span class="slider"></span></label></div>
@@ -809,6 +827,7 @@
             workRules.holidayEnabled = document.getElementById('wHolidayEnabled').checked;
             workRules.holidayRate = parseFloat(document.getElementById('wHolidayRate').value) / 100;
             workRules.roundingRule = document.getElementById('wRoundingRule').value;
+            workRules.weeklyContractHours = parseFloat(document.getElementById('wWeeklyContractHours').value.replace(',', '.')) || 35;
             if (preciseToggle.checked) {
                 workRules.statutDetaille = document.getElementById('wStatutDetaille').value;
                 workRules.customNetCoeff = customCoeffInput.value ? parseFloat(customCoeffInput.value.replace(',', '.')) : null;
@@ -1079,7 +1098,7 @@
             </div>
             <div class="today-btn" id="todayStatsBtn">Aujourd'hui</div>
         `;
-        document.getElementById('backStatsBtn').onclick = () => location.reload();
+        document.getElementById('backStatsBtn').onclick = () => loadMainApp();
         function refreshStats() {
             const last7 = [];
             const today = new Date();
@@ -1197,6 +1216,8 @@
         majHtml += `<div class="maj-line" style="border-top:1px solid var(--border-light);margin-top:8px;padding-top:8px;font-weight:500;"><span>Total majorations</span><span>${totalMaj.toFixed(2)} € brut</span></div>`;
         const majDiv = document.getElementById('majDetails');
         if (majDiv) majDiv.innerHTML = majHtml;
+        updateWeekSummary(total);
+        updateEtaAndActiveMaj();
         const dailyPrimes = getDailyPrimes();
         const primesDiv = document.getElementById('primesDetails');
         if (primesDiv) {
@@ -1215,6 +1236,82 @@
                 const primesCard = document.getElementById('primesCard');
                 if (primesCard) primesCard.style.display = 'none';
             }
+        }
+    }
+    // ---------- RÉSUMÉ SEMAINE / SOLDES D'HEURES ----------
+    function parseWorkTimeSec(wt) {
+        const p = (wt || '').split(':');
+        if (p.length !== 3) return 0;
+        return (parseInt(p[0]) || 0) * 3600 + (parseInt(p[1]) || 0) * 60 + (parseInt(p[2]) || 0);
+    }
+    function updateWeekSummary(total) {
+        const weekHoursEl = document.getElementById('weekHours');
+        if (!weekHoursEl) return;
+        const now = new Date();
+        const monday = new Date(now);
+        monday.setHours(0, 0, 0, 0);
+        monday.setDate(monday.getDate() - ((now.getDay() + 6) % 7));
+        let weekSec = 0, weekNet = 0, monthSec = 0;
+        for (const s of sessions) {
+            const parts = (s.date || '').split('/');
+            if (parts.length !== 3) continue;
+            const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            const sec = parseWorkTimeSec(s.workTime);
+            if (d >= monday && d <= now) { weekSec += sec; weekNet += parseFloat(s.net) || 0; }
+            if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) monthSec += sec;
+        }
+        // Journée en cours incluse en temps réel
+        weekSec += workSeconds; monthSec += workSeconds;
+        weekNet += (total && total.net) || 0;
+        const weekH = weekSec / 3600, monthH = monthSec / 3600;
+        weekHoursEl.innerText = `${weekH.toFixed(1).replace('.', ',')} h · ${weekNet.toFixed(2).replace('.', ',')} € net`;
+        const refW = workRules.weeklyContractHours || 35;
+        const refM = workRules.monthlyContractHours || 151.67;
+        const fmtBalance = (diff) => (diff >= 0 ? '+' : '−') + Math.abs(diff).toFixed(1).replace('.', ',') + ' h';
+        const wDiff = weekH - refW, mDiff = monthH - refM;
+        const weekBalEl = document.getElementById('weekBalance');
+        const monthBalEl = document.getElementById('monthBalance');
+        document.getElementById('weekBalanceLabel').innerText = `Solde hebdo (${String(refW).replace('.', ',')} h)`;
+        document.getElementById('monthBalanceLabel').innerText = `Solde mensuel (${String(refM).replace('.', ',')} h)`;
+        weekBalEl.innerText = fmtBalance(wDiff);
+        weekBalEl.className = wDiff >= 0 ? 'bal-pos' : 'bal-neg';
+        monthBalEl.innerText = fmtBalance(mDiff);
+        monthBalEl.className = mDiff >= 0 ? 'bal-pos' : 'bal-neg';
+    }
+    // ---------- HEURE DE FIN ESTIMÉE + MAJORATIONS ACTIVES ----------
+    function updateEtaAndActiveMaj() {
+        const etaEl = document.getElementById('etaLabel');
+        if (etaEl) {
+            const threshold = workRules.overtimeThreshold;
+            if (workRunning && threshold > 0) {
+                const remaining = threshold * 3600 - workSeconds;
+                if (remaining > 0) {
+                    const eta = new Date(Date.now() + remaining * 1000);
+                    etaEl.innerText = `${String(threshold).replace('.', ',')} h atteintes à ${eta.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+                } else {
+                    etaEl.innerText = `Seuil de ${String(threshold).replace('.', ',')} h dépassé`;
+                }
+                etaEl.style.display = 'block';
+            } else {
+                etaEl.style.display = 'none';
+            }
+        }
+        const activeEl = document.getElementById('activeMaj');
+        if (activeEl) {
+            let badges = '';
+            if (workRunning) {
+                const now = new Date();
+                const h = now.getHours();
+                const isNight = (h >= workRules.nightStart || h < workRules.nightEnd);
+                if (isNight && workRules.nightRate > 0) badges += `<span class="maj-badge">Nuit +${Math.round(workRules.nightRate * 100)} % en cours</span>`;
+                if (workRules.sundayEnabled && now.getDay() === 0 && workRules.sundayRate > 0) badges += `<span class="maj-badge">Dimanche +${Math.round(workRules.sundayRate * 100)} % en cours</span>`;
+                if (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(now)) && workRules.holidayRate > 0) badges += `<span class="maj-badge">Férié +${Math.round(workRules.holidayRate * 100)} % en cours</span>`;
+                const otActive = workRules.weeklyOvertimeEnabled
+                    ? (getWeekPriorSeconds() + workSeconds > workRules.weeklyOvertimeThreshold * 3600)
+                    : (workSeconds > workRules.overtimeThreshold * 3600);
+                if (otActive && workRules.overtimeRate > 0) badges += `<span class="maj-badge">Heures sup. en cours</span>`;
+            }
+            activeEl.innerHTML = badges;
         }
     }
     function tick() { if (!lastTimestamp) return; const now=Date.now(), elapsed=Math.floor((now-lastTimestamp)/1000); if(elapsed>=1){ if(workRunning) workSeconds+=elapsed; else if(lunchRunning) lunchSeconds+=elapsed; else if(shortPauseRunning) shortPauseSeconds+=elapsed; lastTimestamp=now; updateAllDisplays(); updateButtonsUI(); checkDateChange(); } }
@@ -1266,45 +1363,55 @@
         });
     }
     function updateButtonsUI() {
-        const startWorkBtn=document.getElementById('startWorkBtn');
-        if(!startWorkBtn) return;
+        const startWorkBtn = document.getElementById('startWorkBtn');
+        if (!startWorkBtn) return;
+        const lunchBtn = document.getElementById('lunchToggleBtn');
+        const pauseBtn = document.getElementById('shortPauseToggleBtn');
+        const stopDayBtn = document.getElementById('stopDayBtn');
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusLabel = document.getElementById('statusLabel');
+        const forgotLink = document.getElementById('forgotLink');
+
+        // Bouton principal : libellé selon l'état
+        startWorkBtn.innerText = workRunning ? 'Travail en cours' : (workSeconds > 0 ? 'Reprendre le travail' : 'Commencer');
         startWorkBtn.disabled = workRunning;
-        const startLunchBtn=document.getElementById('startLunchBtn');
-        const stopLunchBtn=document.getElementById('stopLunchBtn');
-        const startShortPauseBtn=document.getElementById('startShortPauseBtn');
-        const stopShortPauseBtn=document.getElementById('stopShortPauseBtn');
-        const stopDayBtn=document.getElementById('stopDayBtn');
-        const hamburgerBtn=document.getElementById('hamburgerBtn');
-        if(lunchRunning){
-            startLunchBtn.disabled=true; stopLunchBtn.disabled=false;
-            startLunchBtn.classList.remove('btn-lunch'); startLunchBtn.classList.add('btn-secondary');
-            stopLunchBtn.classList.remove('btn-secondary'); stopLunchBtn.classList.add('btn-lunch');
-        } else {
-            startLunchBtn.disabled=false; stopLunchBtn.disabled=true;
-            startLunchBtn.classList.remove('btn-secondary'); startLunchBtn.classList.add('btn-lunch');
-            stopLunchBtn.classList.remove('btn-lunch'); stopLunchBtn.classList.add('btn-secondary');
+
+        // Boutons bascule des pauses
+        lunchBtn.innerText = lunchRunning ? 'Reprendre le travail' : 'Pause déjeuner';
+        lunchBtn.classList.toggle('btn-lunch', lunchRunning);
+        lunchBtn.classList.toggle('btn-secondary', !lunchRunning);
+        pauseBtn.innerText = shortPauseRunning ? 'Reprendre le travail' : 'Pause courte';
+        pauseBtn.classList.toggle('btn-lunch', shortPauseRunning);
+        pauseBtn.classList.toggle('btn-secondary', !shortPauseRunning);
+
+        // Indicateur d'état
+        if (statusDot && statusLabel) {
+            let cls = 'stopped', label = 'Arrêté';
+            if (workRunning) { cls = 'running'; label = 'Travail en cours'; }
+            else if (lunchRunning) { cls = 'paused'; label = 'Pause déjeuner'; }
+            else if (shortPauseRunning) { cls = 'paused'; label = 'Pause courte'; }
+            else if (workSeconds > 0) { label = 'Interrompu'; }
+            statusDot.className = 'status-dot ' + cls;
+            statusLabel.innerText = label;
         }
-        if(shortPauseRunning){
-            startShortPauseBtn.disabled=true; stopShortPauseBtn.disabled=false;
-            startShortPauseBtn.classList.remove('btn-lunch'); startShortPauseBtn.classList.add('btn-secondary');
-            stopShortPauseBtn.classList.remove('btn-secondary'); stopShortPauseBtn.classList.add('btn-lunch');
+
+        // Raccourci saisie manuelle visible seulement avant le démarrage
+        if (forgotLink) forgotLink.style.display = (!workRunning && !lunchRunning && !shortPauseRunning && workSeconds === 0) ? 'block' : 'none';
+
+        const hasAnyTime = (workSeconds + lunchSeconds + shortPauseSeconds) > 0;
+        if (locked) {
+            startWorkBtn.disabled = true; lunchBtn.disabled = true; pauseBtn.disabled = true; stopDayBtn.disabled = true;
+            if (hamburgerBtn) hamburgerBtn.disabled = true;
         } else {
-            startShortPauseBtn.disabled=false; stopShortPauseBtn.disabled=true;
-            startShortPauseBtn.classList.remove('btn-secondary'); startShortPauseBtn.classList.add('btn-lunch');
-            stopShortPauseBtn.classList.remove('btn-lunch'); stopShortPauseBtn.classList.add('btn-secondary');
-        }
-        const hasAnyTime = (workSeconds+lunchSeconds+shortPauseSeconds)>0;
-        if(locked){
-            startWorkBtn.disabled=true; startLunchBtn.disabled=true; stopLunchBtn.disabled=true; startShortPauseBtn.disabled=true; stopShortPauseBtn.disabled=true; stopDayBtn.disabled=true; if(hamburgerBtn) hamburgerBtn.disabled=true;
-        } else {
-            stopDayBtn.disabled=!hasAnyTime; if(hamburgerBtn) hamburgerBtn.disabled=false;
+            lunchBtn.disabled = false; pauseBtn.disabled = false;
+            stopDayBtn.disabled = !hasAnyTime;
+            if (hamburgerBtn) hamburgerBtn.disabled = false;
         }
     }
-    function startWork(){ if(locked) return; if(workRunning) return; customConfirm("Voulez-vous démarrer le travail ?",(ok)=>{ if(!ok) return; if(lunchRunning) lunchRunning=false; if(shortPauseRunning) shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
-    function startLunch(){ if(locked) return; if(lunchRunning) return; customConfirm("Démarrer la pause déjeuner ?",(ok)=>{ if(!ok) return; if(workRunning) workRunning=false; if(shortPauseRunning) shortPauseRunning=false; lunchRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
-    function stopLunch(){ if(locked) return; if(!lunchRunning) return; customConfirm("Terminer la pause déjeuner ?",(ok)=>{ if(!ok) return; lunchRunning=false; workRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
-    function startShortPause(){ if(locked) return; if(shortPauseRunning) return; customConfirm("Démarrer une pause courte ?",(ok)=>{ if(!ok) return; if(workRunning) workRunning=false; if(lunchRunning) lunchRunning=false; shortPauseRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
-    function stopShortPause(){ if(locked) return; if(!shortPauseRunning) return; customConfirm("Terminer la pause courte ?",(ok)=>{ if(!ok) return; shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }); }
+    function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function toggleLunch(){ if(locked) return; if(lunchRunning){ lunchRunning=false; workRunning=true; } else { workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }
+    function toggleShortPause(){ if(locked) return; if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; } else { workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }
     function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }); }
     // Exports (CSV, copy, PDF)
     function exportCSV() {
@@ -1408,25 +1515,34 @@
                     <div class="top-bar">
                         <div class="left-group"><button class="hamburger" id="hamburgerBtn">≡</button></div>
                         <div class="title-container"><div class="main-title logo-mark">${LOGO_HTML}</div></div>
-                        <div class="right-group"><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
+                        <div class="right-group"><span class="mono-icon" style="font-size:0.95rem;" title="Verrouillage de l'écran">🔒</span><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
                     </div>
                     <div class="card hero-card">
                         <div class="date-label" id="dateLabel"></div>
                         <div class="hero-timer" id="workTime">00:00:00</div>
                         <div class="real-time" id="realTime">réel: 00:00:00</div>
+                        <div class="status-row"><span class="status-dot stopped" id="statusDot"></span><span id="statusLabel">Arrêté</span></div>
+                        <div class="eta-label" id="etaLabel" style="display:none;"></div>
                         <div class="button-group"><button class="btn btn-primary" id="startWorkBtn">Commencer</button></div>
+                        <div class="forgot-link" id="forgotLink">Oublié de lancer ? → Saisie manuelle</div>
                     </div>
                     <div class="salary-row"><div class="salary-card"><div class="salary-value brut" id="brutTotal">0,00 €</div><div>Brut</div></div><div class="salary-card"><div class="salary-value net" id="netTotal">0,00 €</div><div>Net</div></div></div>
+                    <div class="card" id="weekCard" style="cursor:pointer; padding:14px 18px;">
+                        <div class="week-line"><span>Cette semaine</span><span id="weekHours">–</span></div>
+                        <div class="week-line sub"><span id="weekBalanceLabel">Solde hebdo</span><span id="weekBalance">–</span></div>
+                        <div class="week-line sub"><span id="monthBalanceLabel">Solde mensuel</span><span id="monthBalance">–</span></div>
+                    </div>
                     <div class="card">
                         <div class="card-header"><span class="card-title">Pause déjeuner</span><span class="counter-value" id="lunchTime">00:00:00</span></div>
-                        <div class="button-group"><button class="btn btn-lunch" id="startLunchBtn">Démarrer déjeuner</button><button class="btn btn-secondary" id="stopLunchBtn" disabled>Terminer déjeuner</button></div>
+                        <div class="button-group"><button class="btn btn-lunch" id="lunchToggleBtn">Pause déjeuner</button></div>
                     </div>
                     <div class="card">
                         <div class="card-header"><span class="card-title">Pauses courtes</span><span class="counter-value" id="shortPauseTime">00:00:00</span></div>
-                        <div class="button-group"><button class="btn btn-lunch" id="startShortPauseBtn">Démarrer pause</button><button class="btn btn-secondary" id="stopShortPauseBtn" disabled>Terminer pause</button></div>
+                        <div class="button-group"><button class="btn btn-lunch" id="shortPauseToggleBtn">Pause courte</button></div>
                     </div>
                     <div class="card">
                         <div class="card-title" style="margin-bottom:12px;">Majorations</div>
+                        <div id="activeMaj"></div>
                         <div id="majDetails"></div>
                     </div>
                     <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
@@ -1436,10 +1552,10 @@
             <div class="drawer" id="drawer">
                 <div class="drawer-header"><h3>Menu</h3><button class="close-drawer" id="closeDrawerBtn">✕</button></div>
                 <div class="drawer-content">
-                    <div class="menu-section"><div class="menu-section-title">Général</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div></div>
-                    <div class="menu-section"><div class="menu-section-title">Saisie & Données</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
                     <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
-                    <div class="menu-section"><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuExport"><span class="mono-icon">📋</span> Exporter JSON</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Exporter PDF</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Données</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Bilan mensuel PDF</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuExport"><span class="mono-icon">📦</span> Exporter JSON</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div></div>
                 </div>
             </div>
         `;
@@ -1455,11 +1571,11 @@
         document.getElementById('hamburgerBtn').onclick = () => { if (!locked) document.getElementById('drawer').classList.add('open'); document.getElementById('overlay').classList.add('active'); };
         document.getElementById('closeDrawerBtn').onclick = () => { document.getElementById('drawer').classList.remove('open'); document.getElementById('overlay').classList.remove('active'); };
         document.getElementById('startWorkBtn').onclick = startWork;
-        document.getElementById('startLunchBtn').onclick = startLunch;
-        document.getElementById('stopLunchBtn').onclick = stopLunch;
-        document.getElementById('startShortPauseBtn').onclick = startShortPause;
-        document.getElementById('stopShortPauseBtn').onclick = stopShortPause;
+        document.getElementById('lunchToggleBtn').onclick = toggleLunch;
+        document.getElementById('shortPauseToggleBtn').onclick = toggleShortPause;
         document.getElementById('stopDayBtn').onclick = stopDay;
+        document.getElementById('weekCard').onclick = () => { if (!locked) showStats(); };
+        document.getElementById('forgotLink').onclick = () => { if (!locked) manualEntry(); };
         const lockSwitch = document.getElementById('lockSwitchInput');
         lockSwitch.addEventListener('change', (e) => { if (e.target.checked) { locked = true; updateButtonsUI(); showInfoModal("Écran verrouillé."); } else { showInputModal("Mot de passe pour déverrouiller", (pwd) => { if (pwd === lockPassword) { locked = false; updateButtonsUI(); showInfoModal("Écran déverrouillé."); lockSwitch.checked = false; } else { showInfoModal("Mot de passe incorrect."); lockSwitch.checked = true; locked = true; updateButtonsUI(); } }, ""); } });
         document.getElementById('menuProfile').onclick = () => { closeDrawer(); showConfigPage(false); };
@@ -1505,7 +1621,7 @@
                     <details class="help-section" open>
                         <summary>Guide rapide</summary>
                         <p><strong>1. Démarrer une journée</strong> : cliquez sur "Commencer". Le compteur se lance et le salaire défile en temps réel.</p>
-                        <p><strong>2. Faire une pause</strong> : utilisez les boutons "Déjeuner" ou "Pause courte". Ils s’échangent les couleurs avec le bouton "Terminer".</p>
+                        <p><strong>2. Faire une pause</strong> : un seul bouton par type de pause. "Pause déjeuner" interrompt le travail ; le même bouton devient "Reprendre le travail". L'indicateur sous le compteur montre l'état en cours (vert = travail, orange = pause).</p>
                         <p><strong>3. Arrêter la journée</strong> : cliquez sur "Arrêter la journée". La session est enregistrée dans l’historique et les compteurs remis à zéro.</p>
                         <p><strong>4. Saisie manuelle</strong> : si vous avez oublié de chronométrer, allez dans le menu "Saisie manuelle" pour ajouter une plage horaire ou remplacer le temps du jour.</p>
                         <p><strong>5. Voir l’historique</strong> : dans le menu, la liste des 50 dernières sessions. Vous pouvez exporter toutes les données en JSON, CSV, ou générer un bilan mensuel PDF.</p>
@@ -1536,6 +1652,16 @@
                             <li><strong>Prime d’ancienneté</strong> : activable avec un pourcentage par année ou un montant fixe mensuel (saisie de la date d’entrée).</li>
                             <li><strong>13e mois</strong> : optionnel, versé en une fois un mois donné ou mensualisé.</li>
                         </ul>
+                    </details>
+                    <details class="help-section">
+                        <summary>Solde d'heures et résumé de la semaine</summary>
+                        <p>La carte sous Brut/Net affiche en temps réel (journée en cours incluse) :</p>
+                        <ul>
+                            <li><strong>Cette semaine</strong> : heures travaillées depuis lundi et net estimé.</li>
+                            <li><strong>Solde hebdo</strong> : écart par rapport à vos heures hebdomadaires contractuelles (réglables dans Mon profil, 35 h par défaut). <strong>+2,6 h</strong> en vert = excédent, <strong>−2,6 h</strong> en orange = déficit.</li>
+                            <li><strong>Solde mensuel</strong> : même principe par rapport aux heures mensuelles contractuelles (151,67 h par défaut, mode précis).</li>
+                        </ul>
+                        <p>Un appui sur cette carte ouvre les statistiques. Pendant le travail, l'écran principal affiche aussi l'heure à laquelle vous atteindrez votre seuil journalier, et des badges signalent les majorations en cours (nuit, dimanche, férié, heures sup.).</p>
                     </details>
                     <details class="help-section">
                         <summary>Arrondi du temps</summary>
@@ -1602,7 +1728,7 @@
                     </details>
                 </div>
             `;
-            document.getElementById('backHelpBtn').onclick = () => location.reload();
+            document.getElementById('backHelpBtn').onclick = () => loadMainApp();
         }
         function manualEntry(){
             const mainDiv = document.querySelector('.main-card');
@@ -1614,7 +1740,7 @@
             <div class="card-title" style="margin-top:20px;">Ou remplacer le temps du jour</div>
             <div class="time-input-group"><label>Nouveau temps travaillé (hh:mm:ss) :</label><input type="text" id="manualWorkTime" placeholder="00:00:00"></div>
             <button class="btn btn-primary" id="setWorkTimeBtn">Appliquer</button></div>`;
-            document.getElementById('backManualBtn').onclick = () => location.reload();
+            document.getElementById('backManualBtn').onclick = () => loadMainApp();
             document.getElementById('addManualBtn').onclick = () => {
                 if(locked){ showInfoModal("Déverrouillez l'écran"); return; }
                 const type = document.getElementById('manualType').value;
