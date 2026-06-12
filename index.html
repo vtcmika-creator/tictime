@@ -420,14 +420,15 @@
         const inputOk = document.getElementById('inputOkBtn');
         const inputCancel = document.getElementById('inputCancelBtn');
         const overlay = document.getElementById('overlay');
-        if (confirmOk) confirmOk.onclick = () => { window.closeConfirmModal(); if (pendingConfirmCallback) pendingConfirmCallback(true); pendingConfirmCallback = null; };
-        if (confirmCancel) confirmCancel.onclick = () => { window.closeConfirmModal(); if (pendingConfirmCallback) pendingConfirmCallback(false); pendingConfirmCallback = null; };
+        // Important : vider le callback AVANT de l'appeler, pour permettre l'enchaînement de modales
+        if (confirmOk) confirmOk.onclick = () => { window.closeConfirmModal(); const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb(true); };
+        if (confirmCancel) confirmCancel.onclick = () => { window.closeConfirmModal(); const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb(false); };
         if (closeModal) closeModal.onclick = () => { window.closeInfoModal(); };
-        if (inputOk) inputOk.onclick = () => { const val = document.getElementById('inputField').value; window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(val); pendingInputCallback = null; };
-        if (inputCancel) inputCancel.onclick = () => { window.closeInputModal(); if (pendingInputCallback) pendingInputCallback(null); pendingInputCallback = null; };
+        if (inputOk) inputOk.onclick = () => { const val = document.getElementById('inputField').value; window.closeInputModal(); const cb = pendingInputCallback; pendingInputCallback = null; if (cb) cb(val); };
+        if (inputCancel) inputCancel.onclick = () => { window.closeInputModal(); const cb = pendingInputCallback; pendingInputCallback = null; if (cb) cb(null); };
         const inputForgot = document.getElementById('inputForgotLink');
-        if (inputForgot) inputForgot.onclick = () => { window.closeInputModal(); if (pendingInputCallback) { pendingInputCallback(null); pendingInputCallback = null; } setTimeout(startForgotFlow, 150); };
-        if (overlay) overlay.onclick = () => { window.closeConfirmModal(); window.closeInputModal(); window.closeInfoModal(); if (pendingConfirmCallback) pendingConfirmCallback(false); if (pendingInputCallback) pendingInputCallback(null); pendingConfirmCallback = pendingInputCallback = null; document.getElementById('drawer')?.classList.remove('open'); };
+        if (inputForgot) inputForgot.onclick = () => { window.closeInputModal(); const cb = pendingInputCallback; pendingInputCallback = null; if (cb) cb(null); setTimeout(startForgotFlow, 150); };
+        if (overlay) overlay.onclick = () => { window.closeConfirmModal(); window.closeInputModal(); window.closeInfoModal(); const cbC = pendingConfirmCallback, cbI = pendingInputCallback; pendingConfirmCallback = pendingInputCallback = null; if (cbC) cbC(false); if (cbI) cbI(null); document.getElementById('drawer')?.classList.remove('open'); };
     }
     // ---------- SAUVEGARDE / RESTAURATION AUTOMATIQUE ----------
     function saveStateToLocal() {
