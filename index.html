@@ -288,6 +288,23 @@
     let lockPassword = "0000";
     let autoSaveInterval = null;
     let nightModeTimer = null;
+    // Segments de travail réels (paires début/fin) pour des majorations exactes malgré les pauses
+    let workSegments = [];
+    // Congés / RTT
+    let leaveData = { cpInit: 0, cpMonthly: 2.08, rttInit: 0, refMonth: "", days: [] };
+    // Base des conventions collectives (chargée depuis conventions.json)
+    let conventionsDB = null;
+
+    function closeOpenSegment() { const s = workSegments[workSegments.length - 1]; if (s && !s.end) s.end = Date.now(); }
+    function openSegment() { workSegments.push({ start: Date.now(), end: null }); }
+    function loadLeaveData() { const s = localStorage.getItem('leaveData'); if (s) { try { leaveData = { ...leaveData, ...JSON.parse(s) }; if (!Array.isArray(leaveData.days)) leaveData.days = []; } catch(e) {} } }
+    function saveLeaveData() { localStorage.setItem('leaveData', JSON.stringify(leaveData)); }
+    function countLeaveDays(d1, d2) {
+        return leaveData.days.filter(j => { const d = new Date(j.date + 'T12:00:00'); return d >= d1 && d <= d2; }).length;
+    }
+    function monthsSince(refMonth) { if (!refMonth) return 0; const [y, m] = refMonth.split('-').map(Number); const now = new Date(); return Math.max(0, (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m)); }
+    function cpBalance() { return leaveData.cpInit + leaveData.cpMonthly * monthsSince(leaveData.refMonth) - leaveData.days.filter(d => d.type === 'CP').length; }
+    function rttBalance() { return leaveData.rttInit - leaveData.days.filter(d => d.type === 'RTT').length; }
 
     // ---------- FIREBASE (sauvegarde cloud) ----------
     // Remplacez par la config de votre projet Firebase (Console > Paramètres du projet > Vos applications)
@@ -381,7 +398,7 @@
             workSeconds, lunchSeconds, shortPauseSeconds,
             workRunning, lunchRunning, shortPauseRunning,
             lastTimestamp, workStartTimestamp,
-            currentDate
+            currentDate, workSegments
         };
         localStorage.setItem('autoSaveState', JSON.stringify(state));
     }
@@ -404,6 +421,7 @@
             lastTimestamp = state.lastTimestamp;
             workStartTimestamp = state.workStartTimestamp;
             currentDate = state.currentDate || today;
+            workSegments = Array.isArray(state.workSegments) ? state.workSegments : [];
             if (workRunning || lunchRunning || shortPauseRunning) {
                 if (timerInterval) clearInterval(timerInterval);
                 startTimer();
@@ -546,47 +564,74 @@
         }
         return total;
     }
+    // Segments effectifs : segments réels, ou segment synthétique pour les anciens états sauvegardés
+    function getEffectiveSegments() {
+        const now = Date.now();
+        let segs = workSegments
+            .filter(s => s && s.start)
+            .map(s => ({ start: s.start, end: s.end || now }))
+            .filter(s => s.end > s.start);
+        if (!segs.length && workSeconds > 0) {
+            const startGuess = workStartTimestamp || (now - workSeconds * 1000);
+            segs = [{ start: startGuess, end: startGuess + workSeconds * 1000 }];
+        }
+        return segs.sort((a, b) => a.start - b.start);
+    }
+    // Secondes de nuit dans l'intervalle [startMs, endMs] selon la plage configurée
+    function nightOverlapSec(startMs, endMs) {
+        let total = 0;
+        const ns = workRules.nightStart, ne = workRules.nightEnd;
+        const windows = (ns < ne) ? [[ns, ne]] : [[0, ne], [ns, 24]];
+        let day = new Date(startMs); day.setHours(0, 0, 0, 0);
+        while (day.getTime() < endMs) {
+            const dayStart = day.getTime();
+            for (const w of windows) {
+                const ov = Math.min(endMs, dayStart + w[1] * 3600000) - Math.max(startMs, dayStart + w[0] * 3600000);
+                if (ov > 0) total += ov / 1000;
+            }
+            day.setDate(day.getDate() + 1);
+        }
+        return total;
+    }
+    // Calcul par intervalles : exact malgré les pauses, instantané quelle que soit la durée
     function computeMajorations(totalWorkSecRound, startTime) {
-        if (totalWorkSecRound === 0 || !startTime) return { majNuit:0, majDimanche:0, majFerie:0, majHS:0, brutBase:0, netBase:0 };
+        if (totalWorkSecRound === 0) return { majNuit:0, majDimanche:0, majFerie:0, majHS:0, brutBase:0, netBase:0 };
+        const segs = getEffectiveSegments();
         const baseBrutSec = workRules.tauxBrut / 3600;
         const baseNetSec = workRules.tauxNet / 3600;
-        let majNuit=0, majDimanche=0, majFerie=0, majHS=0;
-        const realSec = workSeconds;
-        let weekPriorSeconds = 0;
-        if (workRules.weeklyOvertimeEnabled) {
-            weekPriorSeconds = getWeekPriorSeconds();
-        }
-        for (let i=0; i<realSec; i++) {
-            const dateSec = new Date(startTime + i*1000);
-            const heures = dateSec.getHours();
-            let isNuit = (heures >= workRules.nightStart || heures < workRules.nightEnd);
-            let isDimanche = (workRules.sundayEnabled && dateSec.getDay() === 0);
-            let isFerie = (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(dateSec)));
-            let isHS = false;
-            let overtimeRate = 0;
-            if (workRules.weeklyOvertimeEnabled) {
-                // Seule la portion au-delà du seuil hebdo est majorée (cumul semaine + seconde courante)
-                if (weekPriorSeconds + i >= workRules.weeklyOvertimeThreshold * 3600) {
-                    isHS = true;
-                    overtimeRate = workRules.overtimeRate;
-                }
-            } else {
-                // Seules les secondes au-delà du seuil journalier sont majorées
-                if (i >= workRules.overtimeThreshold * 3600) {
-                    isHS = true;
-                    overtimeRate = workRules.overtimeRate;
-                    if (workRules.overtimeThreshold2 && i >= workRules.overtimeThreshold2 * 3600) {
-                        overtimeRate = workRules.overtimeRate2;
-                    }
-                }
-            }
-            if (isNuit) majNuit += baseBrutSec * workRules.nightRate;
-            if (isDimanche) majDimanche += baseBrutSec * workRules.sundayRate;
-            if (isFerie) majFerie += baseBrutSec * workRules.holidayRate;
-            if (isHS) majHS += baseBrutSec * overtimeRate;
-        }
         const brutBase = totalWorkSecRound * baseBrutSec;
         const netBase = totalWorkSecRound * baseNetSec;
+        if (!segs.length) return { majNuit:0, majDimanche:0, majFerie:0, majHS:0, brutBase, netBase };
+        let majNuit = 0, majDimanche = 0, majFerie = 0, majHS = 0;
+        let cumSec = 0;
+        const weekPrior = workRules.weeklyOvertimeEnabled ? getWeekPriorSeconds() : 0;
+        const otThresholdSec = workRules.weeklyOvertimeEnabled
+            ? Math.max(0, workRules.weeklyOvertimeThreshold * 3600 - weekPrior)
+            : workRules.overtimeThreshold * 3600;
+        const ot2Sec = (!workRules.weeklyOvertimeEnabled && workRules.overtimeThreshold2) ? workRules.overtimeThreshold2 * 3600 : null;
+        for (const seg of segs) {
+            let cursor = seg.start;
+            while (cursor < seg.end) {
+                const d = new Date(cursor);
+                const dayEnd = new Date(d); dayEnd.setHours(24, 0, 0, 0);
+                const chunkEnd = Math.min(seg.end, dayEnd.getTime());
+                const chunkSec = (chunkEnd - cursor) / 1000;
+                majNuit += nightOverlapSec(cursor, chunkEnd) * baseBrutSec * workRules.nightRate;
+                if (workRules.sundayEnabled && d.getDay() === 0) majDimanche += chunkSec * baseBrutSec * workRules.sundayRate;
+                if (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(d))) majFerie += chunkSec * baseBrutSec * workRules.holidayRate;
+                const beyond1 = Math.max(0, Math.min(chunkSec, cumSec + chunkSec - otThresholdSec));
+                if (beyond1 > 0 && workRules.overtimeRate > 0) {
+                    let secRate1 = beyond1, secRate2 = 0;
+                    if (ot2Sec !== null && workRules.overtimeRate2) {
+                        secRate2 = Math.max(0, Math.min(chunkSec, cumSec + chunkSec - ot2Sec));
+                        secRate1 = beyond1 - secRate2;
+                    }
+                    majHS += secRate1 * baseBrutSec * workRules.overtimeRate + secRate2 * baseBrutSec * (workRules.overtimeRate2 || 0);
+                }
+                cumSec += chunkSec;
+                cursor = chunkEnd;
+            }
+        }
         return { majNuit, majDimanche, majFerie, majHS, brutBase, netBase };
     }
     function computeTotalSalary(totalWorkSecRound, startTime) {
@@ -630,6 +675,11 @@
                             <span id="modePrecisLabel">Mode précis</span>
                         </div>
                         <div id="simpleModeFields">
+                            <div class="welcome-group" id="ccnBlock" style="display:none; background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
+                                <label>Convention collective (optionnel) <span class="help-icon" data-help="Pré-remplit majorations, plage de nuit et heures sup selon votre convention de branche. Valeurs indicatives : vos accords d'entreprise ou votre contrat peuvent prévoir mieux.">ℹ️</span></label>
+                                <select id="wConvention" style="width:100%;"><option value="">— Choisir par nom ou n° IDCC —</option></select>
+                                <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="margin-top:10px; font-size:0.82rem; padding:8px 16px;">Appliquer les valeurs indicatives</button>
+                            </div>
                             <div class="welcome-group"><label>Taux horaire brut (€) <span class="help-icon" data-help="Fiche de paie : ligne 'Salaire de base'.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${workRules.tauxBrut}"></div>
                             <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement ou modifiable manuellement.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${workRules.tauxNet}"></div>
                             <div class="welcome-group"><label>Statut <span class="help-icon" data-help="Contrat de travail ou fiche de paie.">ℹ️</span></label><select id="wStatut" class="time-input-group select"><option value="Non-cadre" ${workRules.statut==="Non-cadre"?"selected":""}>Non-cadre</option><option value="Cadre" ${workRules.statut==="Cadre"?"selected":""}>Cadre</option></select></div>
@@ -809,6 +859,62 @@
         document.querySelectorAll('.help-icon').forEach(icon => {
             icon.addEventListener('click', (e) => { showInfoModal(icon.getAttribute('data-help')); e.stopPropagation(); });
         });
+        // Conventions collectives : pré-remplissage indicatif
+        const ccnSelect = document.getElementById('wConvention');
+        function populateCcn() {
+            if (!conventionsDB || !ccnSelect || ccnSelect.options.length > 1) return;
+            conventionsDB.conventions.forEach((c, i) => {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = `${c.idcc} — ${c.name}`;
+                ccnSelect.appendChild(opt);
+            });
+            document.getElementById('ccnBlock').style.display = 'block';
+        }
+        if (conventionsDB) populateCcn();
+        else fetch('conventions.json').then(r => r.json()).then(db => { conventionsDB = db; populateCcn(); }).catch(() => {});
+        document.getElementById('applyCcnBtn').onclick = () => {
+            if (ccnSelect.value === '') { showInfoModal("Choisissez d'abord une convention dans la liste."); return; }
+            const conv = conventionsDB.conventions[parseInt(ccnSelect.value)];
+            const fset = conv.fields || {};
+            const lines = [];
+            if (fset.nightStart !== undefined && fset.nightEnd !== undefined) lines.push(`Plage de nuit : ${fset.nightStart} h → ${fset.nightEnd} h`);
+            if (fset.nightRate !== undefined) lines.push(`Majoration nuit : +${Math.round(fset.nightRate * 100)} %`);
+            if (fset.sundayRate !== undefined) lines.push(`Majoration dimanche : +${Math.round(fset.sundayRate * 100)} %`);
+            if (fset.holidayRate !== undefined) lines.push(`Majoration férié : +${Math.round(fset.holidayRate * 100)} %`);
+            if (fset.weeklyOvertimeEnabled) lines.push(`Heures sup : +${Math.round((fset.overtimeRate !== undefined ? fset.overtimeRate : 0.25) * 100)} % au-delà de ${fset.weeklyOvertimeThreshold || 35} h/semaine`);
+            else if (fset.overtimeThreshold !== undefined) lines.push(`Heures sup : +${Math.round((fset.overtimeRate !== undefined ? fset.overtimeRate : 0.25) * 100)} % au-delà de ${fset.overtimeThreshold} h/jour`);
+            if (fset.panierDaily) lines.push(`Prime panier : ${String(fset.panierDaily).replace('.', ',')} €/jour`);
+            const verif = conv.lastVerified ? `Valeurs vérifiées : ${conv.lastVerified}.` : "⚠ Valeurs indicatives à vérifier.";
+            const msg = `${conv.name} (IDCC ${conv.idcc})\n\n${lines.join('\n')}\n${conv.notes ? '\n' + conv.notes + '\n' : ''}\n${verif} Ce sont les minima de branche : votre accord d'entreprise ou contrat peut prévoir mieux. Vérifiez sur legifrance.gouv.fr et votre fiche de paie.\n\nAppliquer ces valeurs ?`;
+            customConfirm(msg, (ok) => {
+                if (!ok) return;
+                const setVal = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+                setVal('wNightStart', fset.nightStart);
+                setVal('wNightEnd', fset.nightEnd);
+                if (fset.nightRate !== undefined) setVal('wNightRate', Math.round(fset.nightRate * 100));
+                if (fset.sundayEnabled !== undefined) document.getElementById('wSundayEnabled').checked = fset.sundayEnabled;
+                if (fset.sundayRate !== undefined) setVal('wSundayRate', Math.round(fset.sundayRate * 100));
+                if (fset.holidayEnabled !== undefined) document.getElementById('wHolidayEnabled').checked = fset.holidayEnabled;
+                if (fset.holidayRate !== undefined) setVal('wHolidayRate', Math.round(fset.holidayRate * 100));
+                if (fset.overtimeThreshold !== undefined) setVal('wOvertimeThreshold', fset.overtimeThreshold);
+                if (fset.overtimeRate !== undefined) setVal('wOvertimeRate', Math.round(fset.overtimeRate * 100));
+                if (fset.overtimeThreshold2 !== undefined) setVal('wOvertimeThreshold2', fset.overtimeThreshold2);
+                if (fset.overtimeRate2 !== undefined) setVal('wOvertimeRate2', Math.round(fset.overtimeRate2 * 100));
+                if (fset.weeklyOvertimeEnabled !== undefined) {
+                    workRules.weeklyOvertimeEnabled = fset.weeklyOvertimeEnabled;
+                    if (fset.weeklyOvertimeThreshold !== undefined) workRules.weeklyOvertimeThreshold = fset.weeklyOvertimeThreshold;
+                    weeklyCheck.checked = fset.weeklyOvertimeEnabled;
+                    weeklyDiv.style.display = fset.weeklyOvertimeEnabled ? 'block' : 'none';
+                    if (fset.weeklyOvertimeThreshold !== undefined) setVal('wWeeklyOvertimeThreshold', fset.weeklyOvertimeThreshold);
+                }
+                if (fset.panierDaily) {
+                    const panier = workRules.primes.find(p => p.name === 'Panier');
+                    if (panier) { panier.enabled = true; panier.period = 'daily'; panier.amount = fset.panierDaily; renderPrimes(); }
+                }
+                showInfoModal("Valeurs appliquées au formulaire. Relisez-les, ajustez si besoin, puis enregistrez.");
+            });
+        };
         // Sauvegarde
         document.getElementById('saveConfigBtn').addEventListener('click', () => {
             const brut = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
@@ -939,6 +1045,149 @@
         });
         document.getElementById('backToAppBtn').addEventListener('click', () => loadMainApp());
     }
+    // ---------- PAGE CONGÉS / RTT ----------
+    function showLeavePage() {
+        const mainDiv = document.querySelector('.main-card');
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="hamburger" id="backLeaveBtn">←</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Congés / RTT</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="salary-row">
+                <div class="salary-card"><div class="salary-value" id="cpBalanceVal">–</div><div>Congés payés (j)</div></div>
+                <div class="salary-card"><div class="salary-value" id="rttBalanceVal">–</div><div>RTT (j)</div></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Poser une absence</div>
+                <div class="time-input-group"><label>Date :</label><input type="date" id="leaveDate"></div>
+                <div class="time-input-group"><label>Type :</label><select id="leaveType"><option value="CP">Congé payé</option><option value="RTT">RTT</option><option value="Autre">Autre absence (maladie, sans solde...)</option></select></div>
+                <button class="btn btn-primary" id="addLeaveBtn">Ajouter</button>
+                <div class="card-title" style="margin-top:20px;">Absences posées</div>
+                <div id="leaveList"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Paramètres congés</div>
+                <div class="welcome-group"><label>Report initial CP (jours) <span class="help-icon" data-help="Votre solde de CP au début du comptage (voir fiche de paie).">ℹ️</span></label><input type="text" id="leaveCpInit" class="input-number" value="${leaveData.cpInit}"></div>
+                <div class="welcome-group"><label>Acquisition mensuelle CP (jours/mois)</label><input type="text" id="leaveCpMonthly" class="input-number" value="${leaveData.cpMonthly}"></div>
+                <div class="welcome-group"><label>Début du comptage (année-mois)</label><input type="month" id="leaveRefMonth" value="${leaveData.refMonth || ''}"></div>
+                <div class="welcome-group"><label>Solde initial RTT (jours)</label><input type="text" id="leaveRttInit" class="input-number" value="${leaveData.rttInit}"></div>
+                <button class="btn btn-primary" id="saveLeaveBtn">Enregistrer</button>
+                <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:12px;">Les jours posés réduisent la référence du solde d'heures (1 jour = 1/5 de votre semaine contractuelle). Acquisition CP standard : 2,08 j/mois (25 j/an).</p>
+            </div>
+        `;
+        document.getElementById('backLeaveBtn').onclick = () => loadMainApp();
+        document.getElementById('leaveDate').value = toLocalISO(new Date());
+        function refreshLeaveUI() {
+            document.getElementById('cpBalanceVal').innerText = cpBalance().toFixed(1).replace('.', ',');
+            document.getElementById('rttBalanceVal').innerText = rttBalance().toFixed(1).replace('.', ',');
+            const list = document.getElementById('leaveList');
+            if (!leaveData.days.length) { list.innerHTML = '<div style="color:var(--text-secondary); font-size:0.85rem;">Aucune absence posée</div>'; return; }
+            const sorted = [...leaveData.days].sort((a, b) => b.date.localeCompare(a.date));
+            list.innerHTML = sorted.map(d => `
+                <div class="maj-line"><span>${new Date(d.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} — ${d.type}</span><span class="delete-session mono-icon" data-date="${d.date}" data-type="${d.type}">🗑️</span></div>
+            `).join('');
+            list.querySelectorAll('.delete-session').forEach(el => {
+                el.onclick = () => {
+                    const idx = leaveData.days.findIndex(d => d.date === el.dataset.date && d.type === el.dataset.type);
+                    if (idx >= 0) { leaveData.days.splice(idx, 1); saveLeaveData(); refreshLeaveUI(); }
+                };
+            });
+        }
+        document.getElementById('addLeaveBtn').onclick = () => {
+            const date = document.getElementById('leaveDate').value;
+            const type = document.getElementById('leaveType').value;
+            if (!date) { showInfoModal("Choisissez une date."); return; }
+            if (leaveData.days.some(d => d.date === date)) { showInfoModal("Une absence est déjà posée à cette date."); return; }
+            leaveData.days.push({ date, type });
+            saveLeaveData();
+            refreshLeaveUI();
+        };
+        document.getElementById('saveLeaveBtn').onclick = () => {
+            leaveData.cpInit = parseFloat(document.getElementById('leaveCpInit').value.replace(',', '.')) || 0;
+            leaveData.cpMonthly = parseFloat(document.getElementById('leaveCpMonthly').value.replace(',', '.')) || 2.08;
+            leaveData.rttInit = parseFloat(document.getElementById('leaveRttInit').value.replace(',', '.')) || 0;
+            leaveData.refMonth = document.getElementById('leaveRefMonth').value || '';
+            saveLeaveData();
+            refreshLeaveUI();
+            showInfoModal("Paramètres congés enregistrés.");
+        };
+        refreshLeaveUI();
+    }
+    // ---------- PAGE COMPARATEUR DE PAIE ----------
+    function showPayComparePage() {
+        const mainDiv = document.querySelector('.main-card');
+        const now = new Date();
+        const monthNames = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="hamburger" id="backPayBtn">←</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Comparateur de paie</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Mois à comparer</div>
+                <div style="display:flex; gap:10px;">
+                    <select id="payMonth" style="flex:2;">${monthNames.map((m, i) => `<option value="${i}" ${i === now.getMonth() ? 'selected' : ''}>${m}</option>`).join('')}</select>
+                    <input type="text" id="payYear" class="input-number" style="flex:1;" value="${now.getFullYear()}">
+                </div>
+                <div class="welcome-group" style="margin-top:16px;"><label>Salaire brut de votre fiche de paie (€)</label><input type="text" id="payBrut" class="input-number" placeholder="ex : 1842,35"></div>
+                <button class="btn btn-primary" id="compareBtn">Comparer</button>
+            </div>
+            <div class="card" id="payResult" style="display:none;"></div>
+        `;
+        document.getElementById('backPayBtn').onclick = () => loadMainApp();
+        document.getElementById('compareBtn').onclick = () => {
+            const mois = parseInt(document.getElementById('payMonth').value);
+            const annee = parseInt(document.getElementById('payYear').value);
+            const ficheBrut = parseFloat(document.getElementById('payBrut').value.replace(',', '.').replace(/\s/g, ''));
+            if (isNaN(ficheBrut) || ficheBrut <= 0) { showInfoModal("Saisissez le brut de votre fiche de paie."); return; }
+            const monthSessions = sessions.filter(s => { const p = s.date.split('/'); return p.length === 3 && parseInt(p[2]) === annee && parseInt(p[1]) - 1 === mois; });
+            if (!monthSessions.length) { showInfoModal("Aucune session enregistrée pour ce mois."); return; }
+            let totalHeures = 0, totalBrut = 0, mNuit = 0, mDim = 0, mFer = 0, mHS = 0;
+            for (const s of monthSessions) {
+                totalHeures += parseWorkTimeSec(s.workTime) / 3600;
+                totalBrut += parseFloat(s.brut) || 0;
+                if (s.majDetails) { mNuit += s.majDetails.nuit || 0; mDim += s.majDetails.dimanche || 0; mFer += s.majDetails.ferie || 0; mHS += s.majDetails.hs || 0; }
+            }
+            const totalMaj = mNuit + mDim + mFer + mHS;
+            const basePrimes = totalBrut - totalMaj;
+            const monthlyPrimes = workRules.primes.filter(p => p.enabled && p.period === "monthly" && p.amount > 0);
+            const primesMensuelles = monthlyPrimes.reduce((sum, p) => sum + p.amount, 0);
+            let thirteenth = 0;
+            if (workRules.thirteenthMonth.enabled && workRules.thirteenthMonth.amount > 0) {
+                if (workRules.thirteenthMonth.type === 'monthly') thirteenth = workRules.thirteenthMonth.amount / 12;
+                else if (workRules.thirteenthMonth.month === mois) thirteenth = workRules.thirteenthMonth.amount;
+            }
+            const totalTicTime = totalBrut + primesMensuelles + thirteenth;
+            const ecart = ficheBrut - totalTicTime;
+            const ecartPct = (ecart / totalTicTime) * 100;
+            const f = (n) => n.toFixed(2).replace('.', ',') + ' €';
+            const ok = Math.abs(ecartPct) <= 2;
+            const ecartColor = ok ? '#2E9E63' : (ecart < 0 ? '#D9534F' : '#D27F26');
+            const ecartMsg = ok
+                ? "Écart faible : votre paie correspond au calcul TicTime (arrondis et régularisations expliquent les petits écarts)."
+                : (ecart < 0
+                    ? "Votre fiche de paie est inférieure au calcul TicTime. Vérifiez en priorité les lignes heures supplémentaires et majorations de nuit/dimanche/férié ci-dessus, puis les absences décomptées."
+                    : "Votre fiche de paie est supérieure au calcul TicTime : primes non configurées dans l'app, régularisation, ou congés payés versés ce mois.");
+            document.getElementById('payResult').style.display = 'block';
+            document.getElementById('payResult').innerHTML = `
+                <div class="card-title">${monthNames[mois]} ${annee} — ${monthSessions.length} session(s), ${totalHeures.toFixed(1).replace('.', ',')} h</div>
+                <div class="maj-line"><span>Base + primes journalières</span><span>${f(basePrimes)}</span></div>
+                <div class="maj-line"><span>Majoration nuit</span><span>${f(mNuit)}</span></div>
+                <div class="maj-line"><span>Majoration dimanche</span><span>${f(mDim)}</span></div>
+                <div class="maj-line"><span>Majoration férié</span><span>${f(mFer)}</span></div>
+                <div class="maj-line"><span>Heures supplémentaires</span><span>${f(mHS)}</span></div>
+                ${primesMensuelles > 0 ? `<div class="maj-line"><span>Primes mensuelles</span><span>${f(primesMensuelles)}</span></div>` : ''}
+                ${thirteenth > 0 ? `<div class="maj-line"><span>13e mois</span><span>${f(thirteenth)}</span></div>` : ''}
+                <div class="maj-line" style="font-weight:600;"><span>Total calculé par TicTime</span><span>${f(totalTicTime)}</span></div>
+                <div class="maj-line"><span>Votre fiche de paie</span><span>${f(ficheBrut)}</span></div>
+                <div class="maj-line" style="font-weight:600; border-bottom:none;"><span>Écart</span><span style="color:${ecartColor};">${(ecart >= 0 ? '+' : '−') + f(Math.abs(ecart)).replace(' €', '')} € (${ecartPct >= 0 ? '+' : ''}${ecartPct.toFixed(1).replace('.', ',')} %)</span></div>
+                <p style="font-size:0.8rem; color:var(--text-secondary); margin-top:12px;">${ecartMsg}</p>
+                <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:8px;">Comparaison indicative basée sur vos pointages : elle ne tient pas compte des absences rémunérées (CP, fériés chômés), retenues et régularisations figurant sur la fiche de paie.</p>
+            `;
+        };
+    }
     // ---------- PAGE CLOUD (FIREBASE) ----------
     function showCloudPage() {
         const mainDiv = document.querySelector('.main-card');
@@ -998,6 +1247,7 @@
             fbDb.collection('users').doc(user.uid).set({
                 sessions: sessions,
                 workRules: workRules,
+                leaves: leaveData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => showInfoModal("Données sauvegardées dans le cloud."))
               .catch(err => showInfoModal("Erreur de sauvegarde : " + err.message))
@@ -1027,6 +1277,11 @@
                         workRules = { ...workRules, ...data.workRules };
                         if (!workRules.holidaysList || !workRules.holidaysList.length) workRules.holidaysList = generateHolidays(new Date().getFullYear());
                         saveWorkRules();
+                    }
+                    if (data.leaves) {
+                        leaveData = { ...leaveData, ...data.leaves };
+                        if (!Array.isArray(leaveData.days)) leaveData.days = [];
+                        saveLeaveData();
                     }
                     showInfoModal(`Restauration terminée : ${added} session(s) ajoutée(s), profil mis à jour.`);
                 }).catch(err => showInfoModal("Erreur de restauration : " + err.message))
@@ -1145,6 +1400,7 @@
         loadWorkRules();
         loadPrefs();
         loadLockPassword();
+        loadLeaveData();
         // Render main app first
         renderMainApp();
         // Then restore auto-save state (DOM now exists)
@@ -1153,6 +1409,7 @@
             workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
             workRunning = false; lunchRunning = false; shortPauseRunning = false;
             lastTimestamp = null; workStartTimestamp = null;
+            workSegments = [];
             currentDate = new Date().toDateString();
         }
         // Force update displays after restore
@@ -1265,14 +1522,19 @@
         weekNet += (total && total.net) || 0;
         const weekH = weekSec / 3600, monthH = monthSec / 3600;
         weekHoursEl.innerText = `${weekH.toFixed(1).replace('.', ',')} h · ${weekNet.toFixed(2).replace('.', ',')} € net`;
-        const refW = workRules.weeklyContractHours || 35;
-        const refM = workRules.monthlyContractHours || 151.67;
+        // Référence ajustée des jours d'absence posés (CP, RTT, autre) : 1 jour = 1/5 de semaine
+        const dailyH = (workRules.weeklyContractHours || 35) / 5;
+        const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6); sunday.setHours(23, 59, 59, 0);
+        const leavesW = countLeaveDays(monday, sunday);
+        const leavesM = countLeaveDays(new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59));
+        const refW = Math.max(0, Math.round(((workRules.weeklyContractHours || 35) - leavesW * dailyH) * 10) / 10);
+        const refM = Math.max(0, Math.round(((workRules.monthlyContractHours || 151.67) - leavesM * dailyH) * 10) / 10);
         const fmtBalance = (diff) => (diff >= 0 ? '+' : '−') + Math.abs(diff).toFixed(1).replace('.', ',') + ' h';
         const wDiff = weekH - refW, mDiff = monthH - refM;
         const weekBalEl = document.getElementById('weekBalance');
         const monthBalEl = document.getElementById('monthBalance');
-        document.getElementById('weekBalanceLabel').innerText = `Solde hebdo (${String(refW).replace('.', ',')} h)`;
-        document.getElementById('monthBalanceLabel').innerText = `Solde mensuel (${String(refM).replace('.', ',')} h)`;
+        document.getElementById('weekBalanceLabel').innerText = `Solde hebdo (${String(refW).replace('.', ',')} h${leavesW > 0 ? ', congés déduits' : ''})`;
+        document.getElementById('monthBalanceLabel').innerText = `Solde mensuel (${String(refM).replace('.', ',')} h${leavesM > 0 ? ', congés déduits' : ''})`;
         weekBalEl.innerText = fmtBalance(wDiff);
         weekBalEl.className = wDiff >= 0 ? 'bal-pos' : 'bal-neg';
         monthBalEl.innerText = fmtBalance(mDiff);
@@ -1317,18 +1579,21 @@
     function tick() { if (!lastTimestamp) return; const now=Date.now(), elapsed=Math.floor((now-lastTimestamp)/1000); if(elapsed>=1){ if(workRunning) workSeconds+=elapsed; else if(lunchRunning) lunchSeconds+=elapsed; else if(shortPauseRunning) shortPauseSeconds+=elapsed; lastTimestamp=now; updateAllDisplays(); updateButtonsUI(); checkDateChange(); } }
     function startTimer() { if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(tick,200); }
     function checkDateChange() { const today=new Date().toDateString(); if(today!==currentDate){ resetAtMidnight(); currentDate=today; showInfoModal("Nouvelle journée - compteurs remis à zéro"); } }
-    function resetAtMidnight() { if(workSeconds||lunchSeconds||shortPauseSeconds) saveSessionToHistory(); workSeconds=lunchSeconds=shortPauseSeconds=0; workRunning=lunchRunning=shortPauseRunning=false; workStartTimestamp=lastTimestamp=null; updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function resetAtMidnight() { if(workSeconds||lunchSeconds||shortPauseSeconds) saveSessionToHistory(); workSeconds=lunchSeconds=shortPauseSeconds=0; workRunning=lunchRunning=shortPauseRunning=false; workStartTimestamp=lastTimestamp=null; workSegments=[]; updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function saveSessionToHistory() {
         const rounded=getRoundedWorkSeconds();
         if(rounded===0 && lunchSeconds===0 && shortPauseSeconds===0) return;
         const now=new Date(), dateStr=now.toLocaleDateString('fr-FR'), timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
         ensureWorkStartTimestamp();
+        closeOpenSegment();
+        const segs = getEffectiveSegments();
+        const firstStart = segs.length ? new Date(segs[0].start).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
         const total = computeTotalSalary(rounded, workStartTimestamp);
         const dailyPrimes = getDailyPrimes();
         let primesTotal = dailyPrimes.reduce((s,p)=> s + p.amount, 0);
         const brutTotal = total.brut + primesTotal;
         const netTotal = total.net + primesTotal * (workRules.tauxNet / workRules.tauxBrut);
-        const session = { date: dateStr, timeOfDay: timeStr, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
+        const session = { date: dateStr, timeOfDay: timeStr, startTime: firstStart, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
         sessions.unshift(session);
         if(sessions.length>50) sessions.pop();
         localStorage.setItem('workSessions',JSON.stringify(sessions));
@@ -1336,6 +1601,7 @@
         workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
         workRunning = false; lunchRunning = false; shortPauseRunning = false;
         workStartTimestamp = null; lastTimestamp = null;
+        workSegments = [];
         updateAllDisplays();
         updateButtonsUI();
         saveStateToLocal();
@@ -1409,9 +1675,9 @@
             if (hamburgerBtn) hamburgerBtn.disabled = false;
         }
     }
-    function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
-    function toggleLunch(){ if(locked) return; if(lunchRunning){ lunchRunning=false; workRunning=true; } else { workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }
-    function toggleShortPause(){ if(locked) return; if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; } else { workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); saveStateToLocal(); }
+    function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; openSegment(); lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function toggleLunch(){ if(locked) return; if(lunchRunning){ lunchRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function toggleShortPause(){ if(locked) return; if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }); }
     // Exports (CSV, copy, PDF)
     function exportCSV() {
@@ -1552,7 +1818,7 @@
             <div class="drawer" id="drawer">
                 <div class="drawer-header"><h3>Menu</h3><button class="close-drawer" id="closeDrawerBtn">✕</button></div>
                 <div class="drawer-content">
-                    <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuPayCompare"><span class="mono-icon">⚖️</span> Comparateur de paie</div><div class="menu-item" id="menuLeave"><span class="mono-icon">🌴</span> Congés / RTT</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
                     <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
                     <div class="menu-section"><div class="menu-section-title">Données</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Bilan mensuel PDF</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuExport"><span class="mono-icon">📦</span> Exporter JSON</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div></div>
                     <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div></div>
@@ -1580,6 +1846,8 @@
         lockSwitch.addEventListener('change', (e) => { if (e.target.checked) { locked = true; updateButtonsUI(); showInfoModal("Écran verrouillé."); } else { showInputModal("Mot de passe pour déverrouiller", (pwd) => { if (pwd === lockPassword) { locked = false; updateButtonsUI(); showInfoModal("Écran déverrouillé."); lockSwitch.checked = false; } else { showInfoModal("Mot de passe incorrect."); lockSwitch.checked = true; locked = true; updateButtonsUI(); } }, ""); } });
         document.getElementById('menuProfile').onclick = () => { closeDrawer(); showConfigPage(false); };
         document.getElementById('menuStats').onclick = () => { closeDrawer(); showStats(); };
+        document.getElementById('menuPayCompare').onclick = () => { closeDrawer(); showPayComparePage(); };
+        document.getElementById('menuLeave').onclick = () => { closeDrawer(); showLeavePage(); };
         document.getElementById('menuSettings').onclick = () => { closeDrawer(); showSettingsPage(); };
         document.getElementById('menuManualEntry').onclick = () => { closeDrawer(); manualEntry(); };
         document.getElementById('menuCloud').onclick = () => {
@@ -1662,6 +1930,15 @@
                             <li><strong>Solde mensuel</strong> : même principe par rapport aux heures mensuelles contractuelles (151,67 h par défaut, mode précis).</li>
                         </ul>
                         <p>Un appui sur cette carte ouvre les statistiques. Pendant le travail, l'écran principal affiche aussi l'heure à laquelle vous atteindrez votre seuil journalier, et des badges signalent les majorations en cours (nuit, dimanche, férié, heures sup.).</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Comparateur de paie, congés et conventions</summary>
+                        <ul>
+                            <li><strong>Comparateur de paie</strong> (menu Suivi) : choisissez un mois, saisissez le brut de votre fiche de paie, et comparez ligne par ligne avec le calcul TicTime. Un écart inférieur à 2 % est normal (arrondis, régularisations). Comparaison indicative : elle ne remplace pas la fiche de paie.</li>
+                            <li><strong>Congés / RTT</strong> (menu Suivi) : configurez votre report initial et votre date de début de comptage, puis posez vos jours (CP, RTT, autre). L'acquisition standard est de 2,08 j/mois. Les jours posés réduisent automatiquement la référence du solde d'heures (1 jour = 1/5 de semaine).</li>
+                            <li><strong>Convention collective</strong> (Mon profil) : choisissez votre convention par nom ou n° IDCC pour pré-remplir les majorations. <strong>Valeurs indicatives des minima de branche</strong> : vos accords d'entreprise peuvent prévoir mieux — vérifiez sur legifrance.gouv.fr et votre fiche de paie.</li>
+                        </ul>
+                        <p>Les majorations sont calculées sur vos plages réelles de travail : les pauses décalent correctement les heures de nuit, dimanche et férié.</p>
                     </details>
                     <details class="help-section">
                         <summary>Arrondi du temps</summary>
@@ -1755,12 +2032,12 @@
                 if(type === 'work'){
                     if(lunchRunning||shortPauseRunning){ showInfoModal("Arrêtez les pauses d'abord"); return; }
                     workSeconds += diffSec;
-                    // Correction : recalculer workStartTimestamp après modification
-                    if(workStartTimestamp === null) {
-                        workStartTimestamp = Date.now() - (workSeconds * 1000);
-                    } else {
-                        workStartTimestamp = Date.now() - (workSeconds * 1000);
-                    }
+                    // Segment réel aux heures saisies (aujourd'hui) pour des majorations exactes
+                    const td = new Date();
+                    const [sh, sm] = startStr.split(':').map(Number);
+                    const segStart = new Date(td.getFullYear(), td.getMonth(), td.getDate(), sh, sm, 0).getTime();
+                    workSegments.push({ start: segStart, end: segStart + diffSec * 1000 });
+                    if(workStartTimestamp === null) workStartTimestamp = Date.now() - (workSeconds * 1000);
                 } else if(type === 'lunch') lunchSeconds += diffSec;
                 else shortPauseSeconds += diffSec;
                 updateAllDisplays(); updateButtonsUI(); showInfoModal("Plage ajoutée"); saveStateToLocal();
@@ -1774,14 +2051,9 @@
                 if(isNaN(h)||isNaN(m)||isNaN(s)){ showInfoModal("Valeurs numériques"); return; }
                 const totalSec = h*3600 + m*60 + s;
                 workSeconds = totalSec;
-                // Correction : recalculer workStartTimestamp après modification
-                if(workStartTimestamp === null && workSeconds > 0) {
-                    workStartTimestamp = Date.now() - (workSeconds * 1000);
-                } else if (workSeconds > 0) {
-                    workStartTimestamp = Date.now() - (workSeconds * 1000);
-                } else {
-                    workStartTimestamp = null;
-                }
+                workStartTimestamp = workSeconds > 0 ? Date.now() - (workSeconds * 1000) : null;
+                // Remplacement = un segment synthétique se terminant maintenant (reste ouvert si travail en cours)
+                workSegments = workSeconds > 0 ? [{ start: Date.now() - workSeconds * 1000, end: workRunning ? null : Date.now() }] : [];
                 updateAllDisplays(); updateButtonsUI(); showInfoModal("Temps mis à jour"); saveStateToLocal();
             };
         }

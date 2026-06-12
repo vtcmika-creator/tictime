@@ -1,0 +1,140 @@
+{
+  "updated": "2026-06",
+  "disclaimer": "Valeurs indicatives des conventions de branche (minima). Les accords d'entreprise, avenants récents et contrats individuels peuvent prévoir des conditions différentes. Vérifiez systématiquement sur legifrance.gouv.fr et votre fiche de paie.",
+  "conventions": [
+    {
+      "idcc": 1979,
+      "name": "Hôtels, cafés, restaurants (HCR)",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.10
+      },
+      "notes": "Paliers HCR : +10 % de la 36e à la 39e h, +20 % de la 40e à la 43e h, +50 % au-delà (TicTime n'applique automatiquement que le 1er palier en mode hebdomadaire). Pas de majoration de nuit générale dans la branche. Avantage nourriture spécifique."
+    },
+    {
+      "idcc": 16,
+      "name": "Transports routiers (marchandises)",
+      "lastVerified": null,
+      "fields": {
+        "nightStart": 21,
+        "nightEnd": 6,
+        "nightRate": 0.20,
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25
+      },
+      "notes": "Travail de nuit (21 h - 6 h) : prime horaire d'environ 20 % du taux conventionnel. +50 % au-delà de 43 h/semaine (non appliqué automatiquement). Frais de déplacement et paniers selon protocole frais."
+    },
+    {
+      "idcc": 3043,
+      "name": "Propreté (entreprises de propreté)",
+      "lastVerified": null,
+      "fields": {
+        "nightStart": 21,
+        "nightEnd": 5,
+        "nightRate": 0.20,
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25,
+        "sundayEnabled": true,
+        "holidayEnabled": true,
+        "holidayRate": 1.0
+      },
+      "notes": "Majoration de nuit +20 % (21 h - 5 h). Dimanche : majoration selon conditions (vérifier l'accord). Férié travaillé : +100 %. +50 % HS au-delà de 43 h/sem (non auto)."
+    },
+    {
+      "idcc": 1351,
+      "name": "Prévention et sécurité (sécurité privée)",
+      "lastVerified": null,
+      "fields": {
+        "nightStart": 21,
+        "nightEnd": 6,
+        "nightRate": 0.10,
+        "sundayEnabled": true,
+        "sundayRate": 0.10,
+        "holidayEnabled": true,
+        "holidayRate": 1.0,
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25
+      },
+      "notes": "Nuit (21 h - 6 h) et dimanche : +10 % chacune (cumulables). Férié travaillé : +100 %. Paniers selon accord."
+    },
+    {
+      "idcc": 1486,
+      "name": "Bureaux d'études techniques (Syntec)",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25
+      },
+      "notes": "+25 % de la 36e à la 43e h, +50 % au-delà (2e palier non auto). Attention : les forfaits jours (cadres autonomes) ne relèvent pas du décompte horaire — TicTime ne s'applique alors qu'à titre informatif."
+    },
+    {
+      "idcc": 2216,
+      "name": "Commerce de détail et de gros à prédominance alimentaire",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25,
+        "sundayEnabled": true,
+        "holidayEnabled": true
+      },
+      "notes": "Majoration des heures de dimanche et de soirée selon l'accord d'enseigne (très variable : vérifier votre accord d'entreprise). +50 % HS au-delà de 43 h/sem (non auto)."
+    },
+    {
+      "idcc": 1501,
+      "name": "Restauration rapide",
+      "lastVerified": null,
+      "fields": {
+        "nightStart": 22,
+        "nightEnd": 6,
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.10
+      },
+      "notes": "Paliers HS proches de la restauration : +10 % puis +20 % puis +50 % selon tranches (1er palier seul appliqué). Majoration de nuit selon ancienneté de l'accord : à vérifier. Prime de coupure et repas selon accord."
+    },
+    {
+      "idcc": 3248,
+      "name": "Métallurgie (convention unifiée 2024)",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25,
+        "nightStart": 21,
+        "nightEnd": 6
+      },
+      "notes": "Nouvelle convention applicable depuis 2024 : majorations de nuit et primes selon classification et accords de site — vérifiez impérativement vos dispositions locales. +50 % HS au-delà de 43 h/sem (non auto)."
+    },
+    {
+      "idcc": 1090,
+      "name": "Services de l'automobile (garages, concessions)",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25,
+        "holidayEnabled": true,
+        "holidayRate": 1.0
+      },
+      "notes": "+50 % HS au-delà de 43 h/sem (non auto). Férié travaillé : +100 % usuel. Primes selon accord."
+    },
+    {
+      "idcc": 2098,
+      "name": "Prestataires de services du secteur tertiaire",
+      "lastVerified": null,
+      "fields": {
+        "weeklyOvertimeEnabled": true,
+        "weeklyOvertimeThreshold": 35,
+        "overtimeRate": 0.25
+      },
+      "notes": "Régime légal des heures supplémentaires (+25 % puis +50 % au-delà de 43 h/sem, 2e palier non auto). Majorations spécifiques selon activité : à vérifier."
+    }
+  ]
+}
