@@ -230,6 +230,7 @@
         .wizard-link { width: 28px; height: 2px; background: var(--border-light); }
         .fab-help { position: fixed; right: 18px; bottom: 18px; width: 52px; height: 52px; border-radius: 50%; background: var(--btn-primary-bg); color: #fff; border: none; font-size: 1.5rem; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-hover); z-index: 900; display: flex; align-items: center; justify-content: center; }
         .fab-help:active { transform: scale(0.94); }
+        .geo-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.4px solid var(--text-secondary); color: var(--text-secondary); font-size: 9px; font-weight: 600; letter-spacing: 0.2px; vertical-align: middle; flex-shrink: 0; margin-left: 6px; }
         .color-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
         .color-swatch { width: 34px; height: 34px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: var(--transition); }
         .color-swatch.selected { border-color: var(--text-primary); transform: scale(1.08); box-shadow: var(--shadow-sm); }
@@ -705,6 +706,7 @@
     }
     // Palette de couleurs prédéfinies (tons doux, accordés à l'app)
     const PROFILE_COLORS = ['#4A78B8', '#5A9E78', '#4F9D9A', '#8A7DB8', '#9B6A8F', '#C08497', '#C2795D', '#C4A35A', '#6B7A90', '#566074'];
+    const GEO_BADGE = '<span class="geo-badge" title="Géolocalisation activée">GPS</span>';
     // Sélecteur de couleur en pastilles : champ caché conservant la valeur (lecture .value inchangée)
     function colorSwatchHtml(inputId, current) {
         const cur = current || PROFILE_COLORS[0];
@@ -1671,7 +1673,7 @@
             return `<div class="card" style="padding:14px 16px; display:flex; align-items:center; gap:12px;">
                 <span class="profile-dot" style="background:${p.color || '#0A84FF'}; width:14px; height:14px;"></span>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}${(p.rules && p.rules.geoEnabled) ? ' <span class="mono-icon" style="font-size:0.8rem; width:auto;" title="Géolocalisation activée">🛰️</span>' : ''}${active ? ' · <span style="color:var(--salary-net);">actif</span>' : ''}</div>
+                    <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}${(p.rules && p.rules.geoEnabled) ? GEO_BADGE : ''}${active ? ' · <span style="color:var(--salary-net);">actif</span>' : ''}</div>
                     <div style="font-size:0.75rem; color:var(--text-secondary);">${count} session${count > 1 ? 's' : ''}</div>
                 </div>
                 ${active ? '' : `<button class="btn btn-secondary profile-activate" data-id="${p.id}" style="padding:8px 14px; font-size:0.82rem;">Activer</button>`}
@@ -2703,7 +2705,7 @@
         if (!bar) return;
         const p = getActiveProfile();
         if (!p) { bar.innerHTML = ''; return; }
-        bar.innerHTML = `<div class="profile-chip" id="profileChip"><span class="profile-dot" style="background:${p.color || '#0A84FF'};"></span><span>${escapeHtml(p.name)}</span>${workRules.geoEnabled ? '<span class="mono-icon" style="font-size:0.85rem; width:auto;" title="Géolocalisation activée">🛰️</span>' : ''}<span class="chev">▾</span></div>`;
+        bar.innerHTML = `<div class="profile-chip" id="profileChip"><span class="profile-dot" style="background:${p.color || '#0A84FF'};"></span><span>${escapeHtml(p.name)}</span>${workRules.geoEnabled ? GEO_BADGE : ''}<span class="chev">▾</span></div>`;
         const chip = document.getElementById('profileChip');
         if (chip) chip.onclick = () => { if (!locked) showProfilesPage(); };
     }
@@ -2832,6 +2834,25 @@
                             <li><strong>Convention collective</strong> (Mon employeur) : choisissez votre convention par nom ou n° IDCC pour pré-remplir les majorations. <strong>Valeurs indicatives des minima de branche</strong> : vos accords d'entreprise peuvent prévoir mieux — vérifiez sur legifrance.gouv.fr et votre fiche de paie.</li>
                         </ul>
                         <p>Les majorations sont calculées sur vos plages réelles de travail : les pauses décalent correctement les heures de nuit, dimanche et férié.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Employeurs (plusieurs employeurs)</summary>
+                        <p>Vous pouvez gérer plusieurs employeurs, chacun avec ses propres taux, majorations, congés et historique. Un seul employeur est « actif » à la fois ; son nom et sa couleur apparaissent sur la puce en haut de l'accueil.</p>
+                        <ul>
+                            <li><strong>Changer d'employeur</strong> : appuyez sur la puce en haut de l'accueil, ou menu <strong>Employeurs</strong>, puis « Activer ». La bascule est bloquée tant qu'une journée est en cours (terminez-la d'abord).</li>
+                            <li><strong>Ajouter un employeur</strong> : menu Employeurs → « + Nouvel employeur », ou à la fin de la configuration initiale (« Ajouter un autre employeur »). Un assistant en 3 étapes vous guide.</li>
+                            <li><strong>Modifier / supprimer / dupliquer</strong> : menu Employeurs → l'icône ⚙︎ d'un employeur. Pour régler ses taux et majorations, activez-le puis ouvrez « Mon employeur ».</li>
+                        </ul>
+                        <p>La sauvegarde cloud enregistre <strong>tous</strong> vos employeurs ; la restauration les remplace par ceux du cloud.</p>
+                    </details>
+                    <details class="help-section">
+                        <summary>Géolocalisation des pointages</summary>
+                        <p>Option <strong>facultative, activable par employeur</strong> (dans « Mon employeur »). Quand elle est active, l'app enregistre votre position GPS au <strong>démarrage</strong> et à l'<strong>arrêt</strong> de la journée, associée au pointage.</p>
+                        <ul>
+                            <li><strong>À quoi ça sert</strong> : disposer d'un <strong>commencement de preuve</strong> de présence sur le lieu de travail en cas de litige. Ce n'est pas une preuve absolue (le GPS d'un téléphone est imprécis et peut être faussé).</li>
+                            <li><strong>Où la voir</strong> : dans l'historique, chaque session géolocalisée affiche un lien « carte » (OpenStreetMap). Un petit badge <strong>GPS</strong> apparaît à côté de l'employeur concerné (accueil et liste Employeurs).</li>
+                            <li><strong>Vie privée</strong> : les positions restent sur votre appareil et votre cloud. Le navigateur demande l'autorisation une seule fois. Désactivable à tout moment.</li>
+                        </ul>
                     </details>
                     <details class="help-section">
                         <summary>Arrondi du temps</summary>
