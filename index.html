@@ -105,10 +105,10 @@
         body { background: var(--bg-gradient), var(--bg-page); background-attachment: fixed; font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; min-height: 100vh; transition: background 0.3s, color 0.2s; color: var(--text-primary); }
         .app { display: flex; flex-direction: column; min-height: 100vh; }
         .main-card { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
-        .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
-        .left-group, .right-group { display: flex; align-items: center; gap: 12px; flex: 1 1 0; min-width: 0; }
-        .right-group { justify-content: flex-end; }
-        .title-container { text-align: center; flex: 0 1 auto; }
+        .top-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 8px; }
+        .left-group { display: flex; align-items: center; gap: 12px; order: 1; }
+        .right-group { display: flex; align-items: center; gap: 12px; order: 2; margin-left: auto; }
+        .title-container { text-align: center; order: 3; flex-basis: 100%; margin-top: 2px; }
         .hamburger { background: var(--card-bg); border: 1px solid var(--card-border); font-size: 22px; width: 44px; height: 44px; border-radius: 50%; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
         .hamburger:active { transform: scale(0.94); }
         .main-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.2px; color: var(--text-primary); }
