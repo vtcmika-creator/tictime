@@ -61,9 +61,9 @@
     {
       "idcc": 1090,
       "name": "Services de l'automobile (garages, concessions)",
-      "lastVerified": null,
-      "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "holidayEnabled": true, "holidayRate": 1.0 },
-      "notes": "+50 % HS au-delà de 43 h/sem (non auto). Férié travaillé : +100 % usuel. Primes selon accord."
+      "lastVerified": "2026-06",
+      "fields": { "nightStart": 21, "nightEnd": 6, "nightRate": 0.25, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "holidayEnabled": true, "holidayRate": 1.0 },
+      "notes": "Nuit 21 h - 6 h : +25 %. Férié exceptionnellement travaillé et 1er mai : +100 % (un férié habituellement travaillé n'est pas majoré). Dimanche travaillé : majoré (selon les sources +25 % à +100 % — à vérifier). +50 % HS au-delà de 43 h/sem (non auto)."
     },
     {
       "idcc": 1266,
@@ -89,9 +89,9 @@
     {
       "idcc": 1501,
       "name": "Restauration rapide",
-      "lastVerified": null,
-      "fields": { "nightStart": 22, "nightEnd": 6, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.10 },
-      "notes": "Paliers HS : +10 % puis +20 % puis +50 % selon tranches (1er palier seul appliqué automatiquement). Majoration de nuit selon accord : à vérifier. Prime de coupure et repas selon accord."
+      "lastVerified": "2026-06",
+      "fields": { "nightStart": 0, "nightEnd": 6, "nightRate": 0.10, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.10 },
+      "notes": "Heures sup : +10 % jusqu'à 1/10 de la durée contractuelle (env. 3,5 h), puis +25 % au-delà (1er palier seul appliqué automatiquement). Nuit : +10 % de minuit à 2 h, +30 % de 2 h à 6 h (la base applique +10 % de minuit à 6 h — ajustez le taux si vous travaillez surtout après 2 h). Prime de coupure et repas selon accord."
     },
     {
       "idcc": 1505,
@@ -201,9 +201,9 @@
     {
       "idcc": 2596,
       "name": "Coiffure et professions connexes",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25 },
-      "notes": "Régime légal des HS. Primes et ancienneté selon grille."
+      "notes": "Régime légal des HS. Dimanche travaillé : repos compensateur + prime (1/24 du salaire mensuel), pas de taux % standard. Férié travaillé : +100 % ou repos compensateur. Primes et ancienneté selon grille."
     },
     {
       "idcc": 2941,
