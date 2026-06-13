@@ -228,6 +228,8 @@
         .wizard-dot.active { background: var(--accent); color: #fff; }
         .wizard-dot.done { background: var(--salary-net); color: #fff; }
         .wizard-link { width: 28px; height: 2px; background: var(--border-light); }
+        .fab-help { position: fixed; right: 18px; bottom: 18px; width: 52px; height: 52px; border-radius: 50%; background: var(--btn-primary-bg); color: #fff; border: none; font-size: 1.5rem; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-hover); z-index: 900; display: flex; align-items: center; justify-content: center; }
+        .fab-help:active { transform: scale(0.94); }
         .color-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
         .color-swatch { width: 34px; height: 34px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: var(--transition); }
         .color-swatch.selected { border-color: var(--text-primary); transform: scale(1.08); box-shadow: var(--shadow-sm); }
@@ -307,6 +309,7 @@
         thirteenthMonth: { enabled: false, type: "once", amount: 0, month: 11 },
         weeklyContractHours: 35,
         monthlyContractHours: 151.67,
+        geoEnabled: false,
         holidaysList: []
     };
     let userPrefs = {
@@ -663,6 +666,29 @@
         return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
     }
     function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    // ---------- GÉOLOCALISATION DES POINTAGES (par employeur, optionnelle) ----------
+    function captureGeo(cb) {
+        if (!navigator.geolocation) { cb(null); return; }
+        navigator.geolocation.getCurrentPosition(
+            p => cb({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy), t: Date.now() }),
+            () => cb(null),
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        );
+    }
+    function maybeCaptureGeoStart() {
+        const today = new Date().toDateString();
+        let cur = null;
+        try { cur = JSON.parse(localStorage.getItem('geoStart') || 'null'); } catch (e) {}
+        if (cur && cur.date === today) return;
+        captureGeo(g => { if (g) localStorage.setItem('geoStart', JSON.stringify({ ...g, date: today })); });
+    }
+    function geoMapLink(p) { return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=18/${p.lat}/${p.lng}`; }
+    function geoHistoryHtml(geo) {
+        const parts = [];
+        if (geo.start) parts.push(`départ <a href="${geoMapLink(geo.start)}" target="_blank" rel="noopener" style="color:var(--accent);">carte</a>`);
+        if (geo.end) parts.push(`fin <a href="${geoMapLink(geo.end)}" target="_blank" rel="noopener" style="color:var(--accent);">carte</a>`);
+        return '📍 Position : ' + parts.join(' · ');
+    }
     // Helpers conventions collectives (partagés par l'assistant)
     function ccnPopulateDatalist(dlId) {
         const dl = document.getElementById(dlId);
@@ -951,6 +977,8 @@
                             </div>
                             <hr><div class="welcome-group"><label>Heures mensuelles contractuelles (pour primes journalières) <span class="help-icon" data-help="Nombre d'heures travaillées par mois (ex: 151,67).">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${workRules.monthlyContractHours}"></div>
                         </div>
+                        <hr>
+                        <div class="inline-switch" style="margin-top:4px;"><span>Géolocalisation des pointages <span class="help-icon" data-help="Optionnel. Enregistre votre position GPS au démarrage et à l'arrêt de la journée, comme commencement de preuve de présence en cas de litige avec l'employeur. Données stockées sur votre appareil et votre cloud, désactivable à tout moment.">ℹ️</span></span><label class="switch"><input type="checkbox" id="wGeoEnabled" ${workRules.geoEnabled?"checked":""}><span class="slider"></span></label></div>
                         <button class="btn btn-primary" id="saveConfigBtn" style="margin-top:24px; display:block; margin-left:auto; margin-right:auto;">${isWelcome ? "Ouvrir l'application" : "Enregistrer"}</button>
                         ${isNew ? '<button class="btn btn-secondary" id="cancelNewEmployerBtn" style="margin-top:12px; display:block; margin-left:auto; margin-right:auto;">Annuler</button>' : ''}
                     </div>
@@ -1084,6 +1112,13 @@
         });
         statutSelect.addEventListener('change', () => { if (autoNet) updateNetFromBrut(); });
         if (customCoeffInput) customCoeffInput.addEventListener('input', () => { if (autoNet) updateNetFromBrut(); });
+        const geoToggle = document.getElementById('wGeoEnabled');
+        if (geoToggle) geoToggle.addEventListener('change', () => {
+            if (geoToggle.checked) {
+                showInfoModal("Géolocalisation activée pour cet employeur. Au démarrage et à l'arrêt de la journée, votre position GPS sera enregistrée avec le pointage — utile comme commencement de preuve de présence. Ces données restent sur votre appareil et votre cloud, et restent désactivables à tout moment. Votre navigateur va demander l'autorisation de localisation.");
+                captureGeo(() => {});
+            }
+        });
         // Pas d'appel initial : ne pas écraser un taux net saisi manuellement
         // Aide contextuelle
         document.querySelectorAll('.help-icon').forEach(icon => {
@@ -1175,6 +1210,7 @@
             workRules.holidayRate = parseFloat(document.getElementById('wHolidayRate').value) / 100;
             workRules.roundingRule = document.getElementById('wRoundingRule').value;
             workRules.weeklyContractHours = parseFloat(document.getElementById('wWeeklyContractHours').value.replace(',', '.')) || 35;
+            const _geoEl = document.getElementById('wGeoEnabled'); if (_geoEl) workRules.geoEnabled = _geoEl.checked;
             if (preciseToggle.checked) {
                 workRules.statutDetaille = document.getElementById('wStatutDetaille').value;
                 workRules.customNetCoeff = customCoeffInput.value ? parseFloat(customCoeffInput.value.replace(',', '.')) : null;
@@ -2377,7 +2413,7 @@
     function startTimer() { if(timerInterval) clearInterval(timerInterval); timerInterval = setInterval(tick,200); }
     function checkDateChange() { const today=new Date().toDateString(); if(today!==currentDate){ resetAtMidnight(); currentDate=today; showInfoModal("Nouvelle journée - compteurs remis à zéro"); } }
     function resetAtMidnight() { if(workSeconds||lunchSeconds||shortPauseSeconds) saveSessionToHistory(); workSeconds=lunchSeconds=shortPauseSeconds=0; workRunning=lunchRunning=shortPauseRunning=false; workStartTimestamp=lastTimestamp=null; workSegments=[]; updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
-    function saveSessionToHistory() {
+    function saveSessionToHistory(geoEnd) {
         tick();
         const rounded=getRoundedWorkSeconds();
         if(rounded===0 && lunchSeconds===0 && shortPauseSeconds===0) return;
@@ -2394,6 +2430,10 @@
         const brutTotal = total.brut + primesTotal;
         const netTotal = total.net + primesTotal * (workRules.tauxNet / workRules.tauxBrut);
         const session = { date: dateStr, timeOfDay: timeStr, startTime: firstStart, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
+        // Géolocalisation : positions du jour (si activée pour cet employeur)
+        let geoStart=null; try{ const gs=JSON.parse(localStorage.getItem('geoStart')||'null'); if(gs && gs.date===now.toDateString()) geoStart={lat:gs.lat,lng:gs.lng,acc:gs.acc,t:gs.t}; }catch(e){}
+        if(geoStart || geoEnd) session.geo = { start: geoStart, end: geoEnd || null };
+        localStorage.removeItem('geoStart');
         sessions.unshift(session);
         if(sessions.length>50) sessions.pop();
         saveSessions();
@@ -2417,6 +2457,7 @@
                     <div>Travail: ${s.workTime} | Déj: ${s.lunchTime} | Pause: ${s.shortPauseTime}</div>
                     <div>Brut: ${s.brut}€ | Net: ${s.net}€</div>
                     <div>Maj: ${s.majBrut}€</div>
+                    ${s.geo ? `<div style="font-size:0.7rem; color:var(--text-secondary); margin-top:2px;">${geoHistoryHtml(s.geo)}</div>` : ''}
                 </div>
                 <span class="delete-session mono-icon" data-index="${idx}">🗑️</span>
             </div>
@@ -2475,10 +2516,10 @@
             if (hamburgerBtn) hamburgerBtn.disabled = false;
         }
     }
-    function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; openSegment(); lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
+    function startWork(){ if(locked || workRunning) return; lunchRunning=false; shortPauseRunning=false; workRunning=true; openSegment(); lastTimestamp=Date.now(); if(workStartTimestamp===null && workSeconds===0) workStartTimestamp=lastTimestamp; if(workRules.geoEnabled) maybeCaptureGeoStart(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function toggleLunch(){ if(locked) return; tick(); if(lunchRunning){ lunchRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; shortPauseRunning=false; lunchRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
     function toggleShortPause(){ if(locked) return; tick(); if(shortPauseRunning){ shortPauseRunning=false; workRunning=true; openSegment(); } else { if(workRunning) closeOpenSegment(); workRunning=false; lunchRunning=false; shortPauseRunning=true; } lastTimestamp=Date.now(); startTimer(); updateButtonsUI(); updateAllDisplays(); saveStateToLocal(); }
-    function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }); }
+    function stopDay(){ if(locked) return; customConfirm("Arrêter la journée et enregistrer les données ?",(ok)=>{ if(!ok) return; const finish=(geoEnd)=>{ if(workSeconds>0 || lunchSeconds>0 || shortPauseSeconds>0) saveSessionToHistory(geoEnd); updateAllDisplays(); updateButtonsUI(); showInfoModal("Session enregistrée et compteurs remis à zéro"); }; if(workRules.geoEnabled){ captureGeo(g=>finish(g)); } else { finish(null); } }); }
     // Exports (CSV, copy, PDF)
     function exportCSV() {
         if (sessions.length === 0) { showInfoModal("Aucune session à exporter."); return; }
@@ -2636,6 +2677,7 @@
                     <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
                     <button class="btn btn-stop" id="stopDayBtn">Arrêter la journée</button>
                 </div>
+                <button class="fab-help" id="fabHelp" aria-label="Aide" title="Aide">?</button>
             </div>
             <div class="drawer" id="drawer">
                 <div class="drawer-header"><h3>Menu</h3><button class="close-drawer" id="closeDrawerBtn">✕</button></div>
@@ -2711,6 +2753,8 @@
         document.getElementById('menuExport').onclick = () => { closeDrawer(); exportJSON(); };
         document.getElementById('menuExportPDF').onclick = () => { closeDrawer(); exportPDFWithShare(); };
         document.getElementById('menuHelp').onclick = () => { closeDrawer(); openHelp(); };
+        const fabHelpBtn = document.getElementById('fabHelp');
+        if (fabHelpBtn) fabHelpBtn.onclick = () => openHelp();
         document.getElementById('menuAbout').onclick = () => { showInfoModal("TicTime v3.0"); };
         const menuLogout = document.getElementById('menuLogout');
         if (!cloudConfigured) menuLogout.style.display = 'none';
@@ -2733,6 +2777,8 @@
                     <div class="right-group"></div>
                 </div>
                 <div class="card">
+                    <input type="text" id="helpSearch" class="input-number" placeholder="Rechercher dans l'aide…" style="margin-bottom:14px;">
+                    <div id="helpNoResult" style="display:none; color:var(--text-secondary); font-size:0.85rem; text-align:center; padding:8px;">Aucune rubrique ne correspond.</div>
                     <details class="help-section" open>
                         <summary>Guide rapide</summary>
                         <p><strong>1. Démarrer une journée</strong> : cliquez sur "Commencer". Le compteur se lance et le salaire défile en temps réel.</p>
@@ -2853,6 +2899,19 @@
                 </div>
             `;
             document.getElementById('backHelpBtn').onclick = () => loadMainApp();
+            const helpSearch = document.getElementById('helpSearch');
+            if (helpSearch) helpSearch.addEventListener('input', () => {
+                const q = helpSearch.value.trim().toLowerCase();
+                let visible = 0;
+                document.querySelectorAll('.help-section').forEach(sec => {
+                    const match = !q || sec.textContent.toLowerCase().includes(q);
+                    sec.style.display = match ? '' : 'none';
+                    sec.open = !!q && match;
+                    if (match) visible++;
+                });
+                const nr = document.getElementById('helpNoResult');
+                if (nr) nr.style.display = (q && visible === 0) ? 'block' : 'none';
+            });
         }
         function manualEntry(){
             const mainDiv = document.querySelector('.main-card');
