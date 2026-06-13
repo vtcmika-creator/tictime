@@ -90,8 +90,8 @@
       "idcc": 1501,
       "name": "Restauration rapide",
       "lastVerified": "2026-06",
-      "fields": { "nightStart": 0, "nightEnd": 6, "nightRate": 0.10, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.10 },
-      "notes": "Heures sup : +10 % jusqu'à 1/10 de la durée contractuelle (env. 3,5 h), puis +25 % au-delà (1er palier seul appliqué automatiquement). Nuit : +10 % de minuit à 2 h, +30 % de 2 h à 6 h (la base applique +10 % de minuit à 6 h — ajustez le taux si vous travaillez surtout après 2 h). Prime de coupure et repas selon accord."
+      "fields": { "nightStart": 0, "nightEnd": 2, "nightRate": 0.10, "nightStart2": 2, "nightEnd2": 6, "nightRate2": 0.30, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.10 },
+      "notes": "Heures sup : +10 % jusqu'à 1/10 de la durée contractuelle (env. 3,5 h), puis +25 % au-delà (1er palier seul appliqué automatiquement). Nuit : +10 % de minuit à 2 h, +30 % de 2 h à 6 h (deux plages prises en compte automatiquement). Prime de coupure et repas selon accord."
     },
     {
       "idcc": 1505,

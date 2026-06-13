@@ -297,6 +297,7 @@
         weeklyOvertimeEnabled: false,
         weeklyOvertimeThreshold: 35,
         nightStart: 21, nightEnd: 6, nightRate: 0.20,
+        nightStart2: null, nightEnd2: null, nightRate2: null,
         sundayEnabled: true, sundayRate: 0.50,
         holidayEnabled: true, holidayRate: 1.0,
         roundingRule: "none",
@@ -828,9 +829,9 @@
         return segs.sort((a, b) => a.start - b.start);
     }
     // Secondes de nuit dans l'intervalle [startMs, endMs] selon la plage configurée
-    function nightOverlapSec(startMs, endMs) {
+    function nightOverlapSec(startMs, endMs, ns, ne) {
+        if (ns == null || ne == null || ns === ne) return 0;
         let total = 0;
-        const ns = workRules.nightStart, ne = workRules.nightEnd;
         const windows = (ns < ne) ? [[ns, ne]] : [[0, ne], [ns, 24]];
         let day = new Date(startMs); day.setHours(0, 0, 0, 0);
         while (day.getTime() < endMs) {
@@ -866,7 +867,8 @@
                 const dayEnd = new Date(d); dayEnd.setHours(24, 0, 0, 0);
                 const chunkEnd = Math.min(seg.end, dayEnd.getTime());
                 const chunkSec = (chunkEnd - cursor) / 1000;
-                majNuit += nightOverlapSec(cursor, chunkEnd) * baseBrutSec * workRules.nightRate;
+                majNuit += nightOverlapSec(cursor, chunkEnd, workRules.nightStart, workRules.nightEnd) * baseBrutSec * workRules.nightRate;
+                if (workRules.nightRate2 != null) majNuit += nightOverlapSec(cursor, chunkEnd, workRules.nightStart2, workRules.nightEnd2) * baseBrutSec * workRules.nightRate2;
                 if (workRules.sundayEnabled && d.getDay() === 0) majDimanche += chunkSec * baseBrutSec * workRules.sundayRate;
                 if (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(d))) majFerie += chunkSec * baseBrutSec * workRules.holidayRate;
                 const beyond1 = Math.max(0, Math.min(chunkSec, cumSec + chunkSec - otThresholdSec));
@@ -946,6 +948,11 @@
                             <div class="welcome-group"><label>Heures hebdomadaires contractuelles <span class="help-icon" data-help="Sert au calcul du solde d'heures (déficit/excédent) affiché sur l'accueil. Ex : 35.">ℹ️</span></label><input type="text" id="wWeeklyContractHours" class="input-number" value="${workRules.weeklyContractHours || 35}"></div>
                             <div class="welcome-group"><label>Plage nuit (de – à)</label><div style="display:flex; gap:8px;"><input type="text" id="wNightStart" class="input-number" value="${workRules.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${workRules.nightEnd}" style="flex:1;"> h</div></div>
                             <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${workRules.nightRate*100}"></div>
+                            <div class="inline-switch"><span>2e plage de nuit (taux différent)</span><label class="switch"><input type="checkbox" id="wNight2Enabled" ${workRules.nightRate2!=null?'checked':''}><span class="slider"></span></label></div>
+                            <div id="night2Fields" style="display:${workRules.nightRate2!=null?'block':'none'}">
+                                <div class="welcome-group"><label>2e plage nuit (de – à)</label><div style="display:flex; gap:8px;"><input type="text" id="wNightStart2" class="input-number" value="${workRules.nightStart2!=null?workRules.nightStart2:''}" style="flex:1;"> h à <input type="text" id="wNightEnd2" class="input-number" value="${workRules.nightEnd2!=null?workRules.nightEnd2:''}" style="flex:1;"> h</div></div>
+                                <div class="welcome-group"><label>Majoration 2e plage (%)</label><input type="text" id="wNightRate2" class="input-number" value="${workRules.nightRate2!=null?Math.round(workRules.nightRate2*100):''}"></div>
+                            </div>
                             <div class="inline-switch"><span>Dimanche travaillé</span><label class="switch"><input type="checkbox" id="wSundayEnabled" ${workRules.sundayEnabled?"checked":""}><span class="slider"></span></label></div>
                             <div class="welcome-group"><label>Majoration dimanche (%)</label><input type="text" id="wSundayRate" class="input-number" value="${workRules.sundayRate*100}"></div>
                             <div class="inline-switch"><span>Jours fériés travaillés</span><label class="switch"><input type="checkbox" id="wHolidayEnabled" ${workRules.holidayEnabled?"checked":""}><span class="slider"></span></label></div>
@@ -1122,6 +1129,9 @@
                 captureGeo(() => {});
             }
         });
+        const night2Toggle = document.getElementById('wNight2Enabled');
+        const night2FieldsEl = document.getElementById('night2Fields');
+        if (night2Toggle && night2FieldsEl) night2Toggle.addEventListener('change', () => { night2FieldsEl.style.display = night2Toggle.checked ? 'block' : 'none'; });
         // Pas d'appel initial : ne pas écraser un taux net saisi manuellement
         // Aide contextuelle
         document.querySelectorAll('.help-icon').forEach(icon => {
@@ -1157,6 +1167,7 @@
             const lines = [];
             if (fset.nightStart !== undefined && fset.nightEnd !== undefined) lines.push(`Plage de nuit : ${fset.nightStart} h → ${fset.nightEnd} h`);
             if (fset.nightRate !== undefined) lines.push(`Majoration nuit : +${Math.round(fset.nightRate * 100)} %`);
+            if (fset.nightRate2 !== undefined) lines.push(`2e plage nuit (${fset.nightStart2} h - ${fset.nightEnd2} h) : +${Math.round(fset.nightRate2 * 100)} %`);
             if (fset.sundayRate !== undefined) lines.push(`Majoration dimanche : +${Math.round(fset.sundayRate * 100)} %`);
             if (fset.holidayRate !== undefined) lines.push(`Majoration férié : +${Math.round(fset.holidayRate * 100)} %`);
             if (fset.weeklyOvertimeEnabled) lines.push(`Heures sup : +${Math.round((fset.overtimeRate !== undefined ? fset.overtimeRate : 0.25) * 100)} % au-delà de ${fset.weeklyOvertimeThreshold || 35} h/semaine`);
@@ -1170,6 +1181,14 @@
                 setVal('wNightStart', fset.nightStart);
                 setVal('wNightEnd', fset.nightEnd);
                 if (fset.nightRate !== undefined) setVal('wNightRate', Math.round(fset.nightRate * 100));
+                if (fset.nightRate2 !== undefined) {
+                    const t2 = document.getElementById('wNight2Enabled'); if (t2) t2.checked = true;
+                    const f2 = document.getElementById('night2Fields'); if (f2) f2.style.display = 'block';
+                    setVal('wNightStart2', fset.nightStart2); setVal('wNightEnd2', fset.nightEnd2); setVal('wNightRate2', Math.round(fset.nightRate2 * 100));
+                } else {
+                    const t2 = document.getElementById('wNight2Enabled'); if (t2) t2.checked = false;
+                    const f2 = document.getElementById('night2Fields'); if (f2) f2.style.display = 'none';
+                }
                 if (fset.sundayEnabled !== undefined) document.getElementById('wSundayEnabled').checked = fset.sundayEnabled;
                 if (fset.sundayRate !== undefined) setVal('wSundayRate', Math.round(fset.sundayRate * 100));
                 if (fset.holidayEnabled !== undefined) document.getElementById('wHolidayEnabled').checked = fset.holidayEnabled;
@@ -1214,6 +1233,12 @@
             workRules.roundingRule = document.getElementById('wRoundingRule').value;
             workRules.weeklyContractHours = parseFloat(document.getElementById('wWeeklyContractHours').value.replace(',', '.')) || 35;
             const _geoEl = document.getElementById('wGeoEnabled'); if (_geoEl) workRules.geoEnabled = _geoEl.checked;
+            const _n2 = document.getElementById('wNight2Enabled');
+            if (_n2 && _n2.checked) {
+                const s2 = parseInt(document.getElementById('wNightStart2').value), e2 = parseInt(document.getElementById('wNightEnd2').value), r2 = parseFloat(document.getElementById('wNightRate2').value);
+                if (!isNaN(s2) && !isNaN(e2) && !isNaN(r2)) { workRules.nightStart2 = s2; workRules.nightEnd2 = e2; workRules.nightRate2 = r2 / 100; }
+                else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
+            } else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
             if (preciseToggle.checked) {
                 workRules.statutDetaille = document.getElementById('wStatutDetaille').value;
                 workRules.customNetCoeff = customCoeffInput.value ? parseFloat(customCoeffInput.value.replace(',', '.')) : null;
@@ -1334,6 +1359,11 @@
                             <p style="font-size:0.75rem; color:var(--text-secondary); margin:14px 0 6px;">Valeurs ci-dessous pré-remplies <strong>à vérifier</strong> sur ta fiche de paie ou ta convention :</p>
                             <div class="welcome-group"><label>Plage de nuit (de – à)</label><div style="display:flex; gap:8px; align-items:center;"><input type="text" id="wNightStart" class="input-number" value="${wr.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${wr.nightEnd}" style="flex:1;"> h</div></div>
                             <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${Math.round(wr.nightRate * 100)}"></div>
+                            <div class="inline-switch"><span>2e plage de nuit (taux différent)</span><label class="switch"><input type="checkbox" id="wNight2Enabled" ${wr.nightRate2!=null?'checked':''}><span class="slider"></span></label></div>
+                            <div id="night2Fields" style="display:${wr.nightRate2!=null?'block':'none'}">
+                                <div class="welcome-group"><label>2e plage nuit (de – à)</label><div style="display:flex; gap:8px; align-items:center;"><input type="text" id="wNightStart2" class="input-number" value="${wr.nightStart2!=null?wr.nightStart2:''}" style="flex:1;"> h à <input type="text" id="wNightEnd2" class="input-number" value="${wr.nightEnd2!=null?wr.nightEnd2:''}" style="flex:1;"> h</div></div>
+                                <div class="welcome-group"><label>Majoration 2e plage (%)</label><input type="text" id="wNightRate2" class="input-number" value="${wr.nightRate2!=null?Math.round(wr.nightRate2*100):''}"></div>
+                            </div>
                             <div class="inline-switch"><span>Dimanche majoré</span><label class="switch"><input type="checkbox" id="wSundayEnabled" ${wr.sundayEnabled ? "checked" : ""}><span class="slider"></span></label></div>
                             <div class="welcome-group"><label>Majoration dimanche (%)</label><input type="text" id="wSundayRate" class="input-number" value="${Math.round(wr.sundayRate * 100)}"></div>
                             <div class="inline-switch"><span>Jours fériés majorés</span><label class="switch"><input type="checkbox" id="wHolidayEnabled" ${wr.holidayEnabled ? "checked" : ""}><span class="slider"></span></label></div>
@@ -1390,6 +1420,9 @@
         document.getElementById('wizNext').onclick = () => { if (!validateStep()) return; if (cur < total) { cur++; renderStep(); window.scrollTo(0, 0); } else { finishWizard(); } };
         const wizCancel = document.getElementById('wizCancel');
         if (wizCancel) wizCancel.onclick = () => cancelNewEmployerConfig();
+        const wizN2 = document.getElementById('wNight2Enabled');
+        const wizN2F = document.getElementById('night2Fields');
+        if (wizN2 && wizN2F) wizN2.addEventListener('change', () => { wizN2F.style.display = wizN2.checked ? 'block' : 'none'; });
         wireColorGrids();
         // Calcul automatique brut -> net
         const tauxBrutInput = document.getElementById('wTauxBrut');
@@ -1415,6 +1448,7 @@
             const lines = [];
             if (f.nightStart !== undefined && f.nightEnd !== undefined) lines.push(`Plage de nuit : ${f.nightStart} h → ${f.nightEnd} h`);
             if (f.nightRate !== undefined) lines.push(`Nuit : +${Math.round(f.nightRate * 100)} %`);
+            if (f.nightRate2 !== undefined) lines.push(`2e plage nuit (${f.nightStart2} h - ${f.nightEnd2} h) : +${Math.round(f.nightRate2 * 100)} %`);
             if (f.sundayRate !== undefined) lines.push(`Dimanche : +${Math.round(f.sundayRate * 100)} %`);
             if (f.holidayRate !== undefined) lines.push(`Férié : +${Math.round(f.holidayRate * 100)} %`);
             if (f.overtimeThreshold !== undefined) lines.push(`Heures sup : +${Math.round((f.overtimeRate !== undefined ? f.overtimeRate : 0.25) * 100)} % au-delà de ${f.overtimeThreshold} h/jour`);
@@ -1425,6 +1459,14 @@
                 sv('wNightStart', f.nightStart);
                 sv('wNightEnd', f.nightEnd);
                 if (f.nightRate !== undefined) sv('wNightRate', Math.round(f.nightRate * 100));
+                if (f.nightRate2 !== undefined) {
+                    const t2 = document.getElementById('wNight2Enabled'); if (t2) t2.checked = true;
+                    const f2 = document.getElementById('night2Fields'); if (f2) f2.style.display = 'block';
+                    sv('wNightStart2', f.nightStart2); sv('wNightEnd2', f.nightEnd2); sv('wNightRate2', Math.round(f.nightRate2 * 100));
+                } else {
+                    const t2 = document.getElementById('wNight2Enabled'); if (t2) t2.checked = false;
+                    const f2 = document.getElementById('night2Fields'); if (f2) f2.style.display = 'none';
+                }
                 if (f.sundayEnabled !== undefined) document.getElementById('wSundayEnabled').checked = f.sundayEnabled;
                 if (f.sundayRate !== undefined) sv('wSundayRate', Math.round(f.sundayRate * 100));
                 if (f.holidayEnabled !== undefined) document.getElementById('wHolidayEnabled').checked = f.holidayEnabled;
@@ -1453,6 +1495,12 @@
             workRules.holidayRate = (parseFloat(document.getElementById('wHolidayRate').value) || 0) / 100;
             workRules.overtimeThreshold = parseFloat(document.getElementById('wOvertimeThreshold').value.replace(',', '.')) || 0;
             workRules.overtimeRate = (parseFloat(document.getElementById('wOvertimeRate').value) || 0) / 100;
+            const _wn2 = document.getElementById('wNight2Enabled');
+            if (_wn2 && _wn2.checked) {
+                const s2 = parseInt(document.getElementById('wNightStart2').value), e2 = parseInt(document.getElementById('wNightEnd2').value), r2 = parseFloat(document.getElementById('wNightRate2').value);
+                if (!isNaN(s2) && !isNaN(e2) && !isNaN(r2)) { workRules.nightStart2 = s2; workRules.nightEnd2 = e2; workRules.nightRate2 = r2 / 100; }
+                else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
+            } else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
             workRules.roundingRule = document.getElementById('wRoundingRule').value;
             // Réglages avancés (facultatif)
             workRules.primes = (workRules.primes || []).map((p, i) => {
@@ -2400,8 +2448,11 @@
             if (workRunning) {
                 const now = new Date();
                 const h = now.getHours();
-                const isNight = (h >= workRules.nightStart || h < workRules.nightEnd);
-                if (isNight && workRules.nightRate > 0) badges += `<span class="maj-badge">Nuit +${Math.round(workRules.nightRate * 100)} % en cours</span>`;
+                const inBand = (ns, ne) => (ns == null || ne == null || ns === ne) ? false : (ns < ne ? (h >= ns && h < ne) : (h >= ns || h < ne));
+                let curNightRate = null;
+                if (inBand(workRules.nightStart, workRules.nightEnd)) curNightRate = workRules.nightRate;
+                else if (workRules.nightRate2 != null && inBand(workRules.nightStart2, workRules.nightEnd2)) curNightRate = workRules.nightRate2;
+                if (curNightRate != null && curNightRate > 0) badges += `<span class="maj-badge">Nuit +${Math.round(curNightRate * 100)} % en cours</span>`;
                 if (workRules.sundayEnabled && now.getDay() === 0 && workRules.sundayRate > 0) badges += `<span class="maj-badge">Dimanche +${Math.round(workRules.sundayRate * 100)} % en cours</span>`;
                 if (workRules.holidayEnabled && workRules.holidaysList.includes(toLocalISO(now)) && workRules.holidayRate > 0) badges += `<span class="maj-badge">Férié +${Math.round(workRules.holidayRate * 100)} % en cours</span>`;
                 const otActive = workRules.weeklyOvertimeEnabled
