@@ -345,7 +345,7 @@
             try { const rr = localStorage.getItem('workRules'); if (rr) r = JSON.parse(rr); } catch (e) {}
             try { const ll = localStorage.getItem('leaveData'); if (ll) l = JSON.parse(ll); } catch (e) {}
             try { const ss = localStorage.getItem('workSessions'); if (ss) s = JSON.parse(ss); } catch (e) {}
-            profiles = [{ id: genProfileId(), name: 'Mon profil', color: (userPrefs && userPrefs.accentColor) || '#0A84FF', rules: r, leave: l, sessions: Array.isArray(s) ? s : [] }];
+            profiles = [{ id: genProfileId(), name: 'Mon employeur', color: (userPrefs && userPrefs.accentColor) || '#0A84FF', rules: r, leave: l, sessions: Array.isArray(s) ? s : [] }];
             activeProfileId = profiles[0].id;
             persistProfiles();
         }
@@ -384,13 +384,40 @@
     function switchProfile(id) {
         if (id === activeProfileId) return;
         if (workRunning || (workSeconds + lunchSeconds + shortPauseSeconds) > 0) {
-            showInfoModal("Terminez d'abord la journée en cours (« Arrêter la journée ») avant de changer de profil, pour ne pas mélanger les heures.");
+            showInfoModal("Terminez d'abord la journée en cours (« Arrêter la journée ») avant de changer d'employeur, pour ne pas mélanger les heures.");
             return;
         }
         commitActiveProfile();
         activeProfileId = id;
         persistProfiles();
         localStorage.removeItem('autoSaveState');
+        loadMainApp();
+    }
+    // Création guidée d'un nouvel employeur : on crée un profil vierge, on l'active, puis on ouvre sa config
+    let pendingPrevProfileId = null;
+    function startNewEmployerConfig() {
+        if (workRunning || (workSeconds + lunchSeconds + shortPauseSeconds) > 0) { showInfoModal("Terminez la journée en cours avant d'ajouter un employeur."); return; }
+        commitActiveProfile();
+        pendingPrevProfileId = activeProfileId;
+        const nid = createProfile('');
+        activeProfileId = nid;
+        persistProfiles();
+        localStorage.removeItem('autoSaveState');
+        applyActiveProfileToGlobals();
+        showConfigPage(false, true);
+    }
+    // Annulation de la création : supprime le profil vierge et revient au précédent
+    function cancelNewEmployerConfig() {
+        const cur = activeProfileId;
+        const other = profiles.find(p => p.id !== cur);
+        const back = (pendingPrevProfileId && profiles.some(p => p.id === pendingPrevProfileId)) ? pendingPrevProfileId : (other ? other.id : null);
+        if (back) {
+            profiles = profiles.filter(p => p.id !== cur);
+            activeProfileId = back;
+            persistProfiles();
+            applyActiveProfileToGlobals();
+        }
+        pendingPrevProfileId = null;
         loadMainApp();
     }
 
@@ -780,15 +807,21 @@
         return workRules.primes.filter(p => p.enabled && p.period === "daily" && p.amount > 0).map(p => ({ name: p.customName || p.name, amount: p.amount }));
     }
     // ---------- PAGE DE CONFIGURATION ----------
-    function showConfigPage(isWelcome = true) {
+    function showConfigPage(isWelcome = true, isNew = false) {
         const root = document.getElementById('appRoot');
-        const title = isWelcome ? "Configuration initiale" : "Mon profil";
+        const title = isWelcome ? "Configuration initiale" : (isNew ? "Nouvel employeur" : "Mon employeur");
+        const nameReq = isWelcome || isNew;
+        const _ap = getActiveProfile();
+        const nameVal = (!isWelcome && !isNew && _ap) ? _ap.name : '';
+        const colorVal = (_ap && _ap.color) || (userPrefs && userPrefs.accentColor) || '#0A84FF';
         root.innerHTML = `
             <div class="app" style="justify-content:center;">
                 <div class="main-card" style="padding:20px; max-width:100%; margin:0; justify-content:center;">
                     <div class="card" style="width:100%;">
                         <div style="text-align:center; margin-bottom:16px;"><div class="main-title logo-mark" style="font-size:1.7rem;">${LOGO_HTML}</div></div>
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-top:8px; margin-bottom:24px;">${title}</div>
+                        <div class="welcome-group"><label>Nom de l'employeur${nameReq ? ' *' : ''} <span class="help-icon" data-help="Donnez un nom à cet employeur (souvent le nom de la société). Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="${escapeHtml(nameVal)}" placeholder="ex : nom de votre employeur"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur (repère visuel)</label><input type="color" id="wProfileColor" value="${colorVal}" style="height:44px;"></div>
                         <div class="inline-switch" style="margin-bottom:20px;">
                             <span id="modeSimpleLabel">Mode simple</span>
                             <label class="switch"><input type="checkbox" id="preciseModeToggle"><span class="slider"></span></label>
@@ -845,6 +878,7 @@
                             <hr><div class="welcome-group"><label>Heures mensuelles contractuelles (pour primes journalières) <span class="help-icon" data-help="Nombre d'heures travaillées par mois (ex: 151,67).">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${workRules.monthlyContractHours}"></div>
                         </div>
                         <button class="btn btn-primary" id="saveConfigBtn" style="margin-top:24px; display:block; margin-left:auto; margin-right:auto;">${isWelcome ? "Ouvrir l'application" : "Enregistrer"}</button>
+                        ${isNew ? '<button class="btn btn-secondary" id="cancelNewEmployerBtn" style="margin-top:12px; display:block; margin-left:auto; margin-right:auto;">Annuler</button>' : ''}
                     </div>
                 </div>
             </div>
@@ -1048,6 +1082,8 @@
         };
         // Sauvegarde
         document.getElementById('saveConfigBtn').addEventListener('click', () => {
+            const profName = document.getElementById('wProfileName') ? document.getElementById('wProfileName').value.trim() : '';
+            if ((isWelcome || isNew) && !profName) { showInfoModal("Donnez un nom à cet employeur."); return; }
             const brut = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
             const net = parseFloat(document.getElementById('wTauxNet').value.replace(',', '.'));
             if (isNaN(brut) || brut <= 0) { showInfoModal("Taux horaire brut invalide."); return; }
@@ -1105,16 +1141,32 @@
             workRules.holidaysList = generateHolidays(new Date().getFullYear());
             saveWorkRules();
             if (isWelcome) {
+                loadProfiles();
                 userPrefs.accentColor = "#0A84FF";
                 userPrefs.autoDarkMode = true;
                 userPrefs.compactMode = false;
                 savePrefs();
                 applyTheme();
-                loadMainApp();
+            }
+            const ap = getActiveProfile();
+            if (ap) {
+                if (profName) ap.name = profName;
+                const colEl = document.getElementById('wProfileColor');
+                if (colEl) ap.color = colEl.value;
+                ap.rules = JSON.parse(JSON.stringify(workRules));
+                persistProfiles();
+            }
+            if (isWelcome || isNew) {
+                customConfirm("Employeur enregistré. Voulez-vous ajouter un autre employeur ?", (ok) => {
+                    if (ok) { startNewEmployerConfig(); }
+                    else { pendingPrevProfileId = null; loadMainApp(); }
+                });
             } else {
                 loadMainApp();
             }
         });
+        const cancelNewBtn = document.getElementById('cancelNewEmployerBtn');
+        if (cancelNewBtn) cancelNewBtn.onclick = () => cancelNewEmployerConfig();
     }
     // ---------- PAGE RÉGLAGES ----------
     function showSettingsPage() {
@@ -1199,7 +1251,7 @@
             });
         });
         document.getElementById('wipeAllBtn').addEventListener('click', () => {
-            customConfirm("Effacer TOUTES les données de cet appareil (historique, profil, congés, réglages) ? Cette action est définitive sur l'appareil. Le compte et la sauvegarde cloud ne sont pas touchés.", (ok) => {
+            customConfirm("Effacer TOUTES les données de cet appareil (employeurs, historique, congés, réglages) ? Cette action est définitive sur l'appareil. Le compte et la sauvegarde cloud ne sont pas touchés.", (ok) => {
                 if (!ok) return;
                 customConfirm("Dernière confirmation : tout supprimer ?", (ok2) => {
                     if (!ok2) return;
@@ -1282,26 +1334,17 @@
         mainDiv.innerHTML = `
             <div class="top-bar">
                 <div class="left-group"><button class="back-btn" id="backProfilesBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
-                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Profils</div></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Employeurs</div></div>
                 <div class="right-group"></div>
             </div>
-            <div class="card" style="padding:14px 18px;"><p style="font-size:0.85rem; color:var(--text-secondary); margin:0; line-height:1.5;">Chaque profil correspond à un employeur : il a ses propres taux, majorations, congés et historique. Un seul profil est actif à la fois. Terminez la journée en cours avant de basculer.</p></div>
+            <div class="card" style="padding:14px 18px;"><p style="font-size:0.85rem; color:var(--text-secondary); margin:0; line-height:1.5;">Chaque employeur a ses propres taux, majorations, congés et historique. Un seul est actif à la fois. Terminez la journée en cours avant de basculer.</p></div>
             ${cards}
-            <button class="btn btn-primary" id="addProfileBtn" style="margin-top:8px; display:block; width:100%;">+ Nouveau profil</button>
+            <button class="btn btn-primary" id="addProfileBtn" style="margin-top:8px; display:block; width:100%;">+ Nouvel employeur</button>
         `;
         document.getElementById('backProfilesBtn').onclick = () => loadMainApp();
         document.querySelectorAll('.profile-activate').forEach(b => b.onclick = () => switchProfile(b.getAttribute('data-id')));
         document.querySelectorAll('.profile-edit').forEach(b => b.onclick = () => showProfileEditPage(b.getAttribute('data-id')));
-        document.getElementById('addProfileBtn').onclick = () => {
-            showInputModal("Nom du nouveau profil (ex : nom de l'employeur)", (name) => {
-                if (name === null) return;
-                const trimmed = (name || '').trim();
-                if (!trimmed) { showInfoModal("Saisissez un nom."); return; }
-                createProfile(trimmed);
-                showProfilesPage();
-                showInfoModal("Profil créé. Activez-le, puis ouvrez « Mon profil » pour régler ses taux et majorations.");
-            }, "", 'text');
-        };
+        document.getElementById('addProfileBtn').onclick = () => startNewEmployerConfig();
     }
     function showProfileEditPage(id) {
         const p = profiles.find(x => x.id === id);
@@ -1311,17 +1354,17 @@
         mainDiv.innerHTML = `
             <div class="top-bar">
                 <div class="left-group"><button class="back-btn" id="backEditProfBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
-                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Modifier le profil</div></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Modifier l'employeur</div></div>
                 <div class="right-group"></div>
             </div>
             <div class="card">
-                <div class="welcome-group"><label>Nom du profil</label><input type="text" id="editProfileName" class="input-number" value="${escapeHtml(p.name)}"></div>
+                <div class="welcome-group"><label>Nom de l'employeur</label><input type="text" id="editProfileName" class="input-number" value="${escapeHtml(p.name)}"></div>
                 <div class="settings-group"><label>Couleur</label><input type="color" id="editProfileColor" value="${p.color || '#0A84FF'}" style="height:44px;"></div>
                 <button class="btn btn-primary" id="saveProfileBtn" style="display:block; width:100%;">Enregistrer</button>
-                <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:10px;">Pour régler les taux, majorations et primes de ce profil, activez-le puis ouvrez « Mon profil ».</p>
+                <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:10px;">Pour régler les taux, majorations et primes de cet employeur, activez-le puis ouvrez « Mon employeur ».</p>
                 <hr>
-                <button class="btn btn-secondary" id="dupProfileBtn" style="display:block; width:100%;">Dupliquer ce profil</button>
-                <button class="btn btn-stop" id="delProfileBtn" style="display:block; width:100%; margin-top:8px;">Supprimer ce profil</button>
+                <button class="btn btn-secondary" id="dupProfileBtn" style="display:block; width:100%;">Dupliquer cet employeur</button>
+                <button class="btn btn-stop" id="delProfileBtn" style="display:block; width:100%; margin-top:8px;">Supprimer cet employeur</button>
             </div>
         `;
         document.getElementById('backEditProfBtn').onclick = () => showProfilesPage();
@@ -1332,16 +1375,16 @@
             p.color = document.getElementById('editProfileColor').value;
             persistProfiles();
             showProfilesPage();
-            showInfoModal("Profil mis à jour.");
+            showInfoModal("Employeur mis à jour.");
         };
         document.getElementById('dupProfileBtn').onclick = () => {
             duplicateProfile(id);
             showProfilesPage();
-            showInfoModal("Profil dupliqué (réglages copiés, historique vierge).");
+            showInfoModal("Employeur dupliqué (réglages copiés, historique vierge).");
         };
         document.getElementById('delProfileBtn').onclick = () => {
-            if (profiles.length <= 1) { showInfoModal("Impossible de supprimer le dernier profil."); return; }
-            customConfirm(`Supprimer le profil « ${p.name} » et tout son historique ? Action définitive.`, (ok) => {
+            if (profiles.length <= 1) { showInfoModal("Impossible de supprimer le dernier employeur."); return; }
+            customConfirm(`Supprimer l'employeur « ${p.name} » et tout son historique ? Action définitive.`, (ok) => {
                 if (!ok) return;
                 commitActiveProfile();
                 const wasActive = id === activeProfileId;
@@ -1351,11 +1394,11 @@
                     persistProfiles();
                     localStorage.removeItem('autoSaveState');
                     loadMainApp();
-                    showInfoModal("Profil supprimé. Profil actif : " + (getActiveProfile() ? getActiveProfile().name : ''));
+                    showInfoModal("Employeur supprimé. Employeur actif : " + (getActiveProfile() ? getActiveProfile().name : ''));
                 } else {
                     persistProfiles();
                     showProfilesPage();
-                    showInfoModal("Profil supprimé.");
+                    showInfoModal("Employeur supprimé.");
                 }
             });
         };
@@ -1601,7 +1644,7 @@
                     <button class="btn btn-secondary" id="cloudRestoreBtn" style="display:none;">Restaurer depuis le cloud</button>
                     <button class="btn btn-secondary" id="cloudSignOutBtn" style="display:none;">Se déconnecter</button>
                 </div>
-                <p style="margin-top:16px; font-size:0.75rem; color:var(--text-secondary);">La sauvegarde inclut l'historique des sessions et votre profil. La restauration fusionne les sessions (sans doublons) et remplace le profil.</p>
+                <p style="margin-top:16px; font-size:0.75rem; color:var(--text-secondary);">La sauvegarde inclut tous vos employeurs (réglages, congés et historiques). La restauration remplace vos employeurs locaux par ceux du cloud.</p>
             </div>
         `;
         document.getElementById('backCloudBtn').onclick = () => loadMainApp();
@@ -1646,14 +1689,14 @@
                 workRules: workRules,
                 leaves: leaveData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => showInfoModal("Données sauvegardées dans le cloud (" + profiles.length + " profil" + (profiles.length > 1 ? 's' : '') + ")."))
+            }).then(() => showInfoModal("Données sauvegardées dans le cloud (" + profiles.length + " employeur" + (profiles.length > 1 ? 's' : '') + ")."))
               .catch(err => showInfoModal("Erreur de sauvegarde : " + err.message))
               .finally(() => { saveBtn.disabled = false; });
         };
         restoreBtn.onclick = () => {
             const user = fbAuth.currentUser;
             if (!user) return;
-            customConfirm("Restaurer depuis le cloud ? Les sessions seront fusionnées et le profil remplacé.", (ok) => {
+            customConfirm("Restaurer depuis le cloud ? Vos employeurs locaux seront remplacés par ceux du cloud.", (ok) => {
                 if (!ok) return;
                 restoreBtn.disabled = true;
                 fbDb.collection('users').doc(user.uid).get().then(doc => {
@@ -1667,7 +1710,7 @@
                         persistProfiles();
                         applyActiveProfileToGlobals();
                         renderHistory();
-                        showInfoModal("Restauration terminée : " + profiles.length + " profil(s) chargé(s) depuis le cloud.");
+                        showInfoModal("Restauration terminée : " + profiles.length + " employeur(s) chargé(s) depuis le cloud.");
                         return;
                     }
                     // Ancienne sauvegarde mono-profil : fusion dans le profil actif
@@ -1692,7 +1735,7 @@
                         if (!Array.isArray(leaveData.days)) leaveData.days = [];
                         saveLeaveData();
                     }
-                    showInfoModal(`Restauration terminée : ${added} session(s) ajoutée(s), profil mis à jour.`);
+                    showInfoModal(`Restauration terminée : ${added} session(s) ajoutée(s), employeur mis à jour.`);
                 }).catch(err => showInfoModal("Erreur de restauration : " + err.message))
                   .finally(() => { restoreBtn.disabled = false; });
             });
@@ -2287,7 +2330,7 @@
                     <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuPayCompare"><span class="mono-icon">⚖️</span> Comparateur de paie</div><div class="menu-item" id="menuLeave"><span class="mono-icon">🌴</span> Congés / RTT</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
                     <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
                     <div class="menu-section"><div class="menu-section-title">Données</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Bilan mensuel PDF</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuExport"><span class="mono-icon">📦</span> Exporter JSON</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div></div>
-                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfiles"><span class="mono-icon">🗂️</span> Profils</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div><div class="menu-item" id="menuLogout"><span class="mono-icon">🚪</span> Se déconnecter</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfiles"><span class="mono-icon">🗂️</span> Employeurs</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon employeur</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div><div class="menu-item" id="menuLogout"><span class="mono-icon">🚪</span> Se déconnecter</div></div>
                 </div>
             </div>
         `;
@@ -2388,7 +2431,7 @@
                     </details>
                     <details class="help-section">
                         <summary>Majorations et heures supplémentaires</summary>
-                        <p>Les majorations sont calculées seconde par seconde selon les règles que vous avez configurées dans votre profil :</p>
+                        <p>Les majorations sont calculées seconde par seconde selon les règles que vous avez configurées pour cet employeur :</p>
                         <ul>
                             <li><strong>Nuit</strong> : plage horaire définie (ex. 21h – 6h), majoration de +100% (ou votre taux).</li>
                             <li><strong>Dimanche</strong> : majoration de +100% (ou votre taux).</li>
@@ -2404,7 +2447,7 @@
                     </details>
                     <details class="help-section">
                         <summary>Primes et compléments de salaire</summary>
-                        <p>Vous pouvez ajouter des primes fixes (panier, transport, pénibilité, personnalisée) dans "Mon profil" (mode précis).</p>
+                        <p>Vous pouvez ajouter des primes fixes (panier, transport, pénibilité, personnalisée) dans "Mon employeur" (mode précis).</p>
                         <ul>
                             <li><strong>Primes journalières</strong> : montant fixe par jour (ex. 5 € de panier). Elles apparaissent dans une carte séparée "Primes journalières".</li>
                             <li><strong>Primes mensuelles</strong> : ajoutées au salaire dans les exports (bilan mensuel, historique), pas en temps réel.</li>
@@ -2417,7 +2460,7 @@
                         <p>La carte sous Brut/Net affiche en temps réel (journée en cours incluse) :</p>
                         <ul>
                             <li><strong>Cette semaine</strong> : heures travaillées depuis lundi et net estimé.</li>
-                            <li><strong>Solde hebdo</strong> : écart par rapport à vos heures hebdomadaires contractuelles (réglables dans Mon profil, 35 h par défaut). <strong>+2,6 h</strong> en vert = excédent, <strong>−2,6 h</strong> en orange = déficit.</li>
+                            <li><strong>Solde hebdo</strong> : écart par rapport à vos heures hebdomadaires contractuelles (réglables dans Mon employeur, 35 h par défaut). <strong>+2,6 h</strong> en vert = excédent, <strong>−2,6 h</strong> en orange = déficit.</li>
                             <li><strong>Solde mensuel</strong> : même principe par rapport aux heures mensuelles contractuelles (151,67 h par défaut, mode précis).</li>
                         </ul>
                         <p>Un appui sur cette carte ouvre les statistiques. Pendant le travail, l'écran principal affiche aussi l'heure à laquelle vous atteindrez votre seuil journalier, et des badges signalent les majorations en cours (nuit, dimanche, férié, heures sup.).</p>
@@ -2427,7 +2470,7 @@
                         <ul>
                             <li><strong>Comparateur de paie</strong> (menu Suivi) : choisissez un mois, saisissez le brut de votre fiche de paie, et comparez ligne par ligne avec le calcul TicTime. Un écart inférieur à 2 % est normal (arrondis, régularisations). Comparaison indicative : elle ne remplace pas la fiche de paie.</li>
                             <li><strong>Congés / RTT</strong> (menu Suivi) : configurez votre report initial et votre date de début de comptage, puis posez vos jours (CP, RTT, autre). L'acquisition standard est de 2,08 j/mois. Les jours posés réduisent automatiquement la référence du solde d'heures (1 jour = 1/5 de semaine).</li>
-                            <li><strong>Convention collective</strong> (Mon profil) : choisissez votre convention par nom ou n° IDCC pour pré-remplir les majorations. <strong>Valeurs indicatives des minima de branche</strong> : vos accords d'entreprise peuvent prévoir mieux — vérifiez sur legifrance.gouv.fr et votre fiche de paie.</li>
+                            <li><strong>Convention collective</strong> (Mon employeur) : choisissez votre convention par nom ou n° IDCC pour pré-remplir les majorations. <strong>Valeurs indicatives des minima de branche</strong> : vos accords d'entreprise peuvent prévoir mieux — vérifiez sur legifrance.gouv.fr et votre fiche de paie.</li>
                         </ul>
                         <p>Les majorations sont calculées sur vos plages réelles de travail : les pauses décalent correctement les heures de nuit, dimanche et férié.</p>
                     </details>
@@ -2453,7 +2496,7 @@
                     </details>
                     <details class="help-section">
                         <summary>Cloud (Firebase)</summary>
-                        <p>Le menu <strong>Cloud</strong> permet de sauvegarder votre historique et votre profil dans Firebase, puis de les restaurer sur un autre appareil (connexion Google requise). La restauration fusionne les sessions sans créer de doublons. Nécessite d’avoir renseigné l’objet <code>firebaseConfig</code> dans le code avec les clés de votre projet. La persistance locale (navigateur) reste active en permanence.</p>
+                        <p>Le menu <strong>Cloud</strong> permet de sauvegarder tous vos employeurs (réglages, congés et historiques) dans Firebase, puis de les restaurer sur un autre appareil (connexion Google requise). Nécessite d’avoir renseigné l’objet <code>firebaseConfig</code> dans le code avec les clés de votre projet. La persistance locale (navigateur) reste active en permanence.</p>
                     </details>
                     <details class="help-section">
                         <summary>Exports et partage</summary>
