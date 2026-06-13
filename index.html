@@ -106,8 +106,9 @@
         .app { display: flex; flex-direction: column; min-height: 100vh; }
         .main-card { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; max-width: 600px; margin: 0 auto; width: 100%; }
         .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
-        .left-group, .right-group { display: flex; align-items: center; gap: 12px; }
-        .title-container { text-align: center; flex: 1; }
+        .left-group, .right-group { display: flex; align-items: center; gap: 12px; flex: 1 1 0; min-width: 0; }
+        .right-group { justify-content: flex-end; }
+        .title-container { text-align: center; flex: 0 1 auto; }
         .hamburger { background: var(--card-bg); border: 1px solid var(--card-border); font-size: 22px; width: 44px; height: 44px; border-radius: 50%; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
         .hamburger:active { transform: scale(0.94); }
         .main-title { font-weight: 600; font-size: 1.15rem; letter-spacing: -0.2px; color: var(--text-primary); }
@@ -220,6 +221,13 @@
         .wizard-dot.active { background: var(--accent); color: #fff; }
         .wizard-dot.done { background: var(--salary-net); color: #fff; }
         .wizard-link { width: 28px; height: 2px; background: var(--border-light); }
+        .color-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+        .color-swatch { width: 34px; height: 34px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: var(--transition); }
+        .color-swatch.selected { border-color: var(--text-primary); transform: scale(1.08); box-shadow: var(--shadow-sm); }
+        .pw-wrap { position: relative; }
+        .pw-wrap .input-number { padding-right: 46px; }
+        .pw-eye { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.1rem; filter: grayscale(1); opacity: 0.55; padding: 4px; line-height: 1; }
+        .pw-eye.on { opacity: 1; filter: none; }
         /* Styles pour l'aide en accordéons */
         .help-section summary {
             cursor: pointer;
@@ -377,7 +385,7 @@
     }
     // Crée un nouveau profil (règles par défaut, historique vierge) et renvoie son id
     function createProfile(name) {
-        const prof = { id: genProfileId(), name: (name || 'Nouveau profil').trim() || 'Nouveau profil', color: (userPrefs && userPrefs.accentColor) || '#0A84FF', rules: JSON.parse(JSON.stringify(DEFAULT_WORK_RULES)), leave: JSON.parse(JSON.stringify(DEFAULT_LEAVE_DATA)), sessions: [] };
+        const prof = { id: genProfileId(), name: (name || 'Nouveau profil').trim() || 'Nouveau profil', color: PROFILE_COLORS[0], rules: JSON.parse(JSON.stringify(DEFAULT_WORK_RULES)), leave: JSON.parse(JSON.stringify(DEFAULT_LEAVE_DATA)), sessions: [] };
         profiles.push(prof); persistProfiles(); return prof.id;
     }
     function duplicateProfile(id) {
@@ -451,7 +459,7 @@
                 <div class="overlay" id="overlay"></div>
                 <div class="modal-info" id="infoModal"><p id="modalMsg"></p><button id="closeModalBtn">OK</button></div>
                 <div class="modal-confirm" id="confirmModal"><p id="confirmMessage"></p><div style="display:flex; gap:12px; justify-content:center;"><button id="confirmOkBtn">Oui</button><button id="confirmCancelBtn">Non</button></div></div>
-                <div class="modal-input" id="inputModal"><p id="inputLabel"></p><input type="password" id="inputField"><div class="modal-forgot" id="inputForgotLink" style="display:none;">Mot de passe oublié ?</div><div style="display:flex; gap:12px; justify-content:center;"><button id="inputOkBtn">OK</button><button id="inputCancelBtn">Annuler</button></div></div>
+                <div class="modal-input" id="inputModal"><p id="inputLabel"></p><div class="pw-wrap"><input type="password" id="inputField" class="input-number"><button type="button" class="pw-eye" id="inputFieldEye" data-target="inputField">👁</button></div><div class="modal-forgot" id="inputForgotLink" style="display:none;">Mot de passe oublié ?</div><div style="display:flex; gap:12px; justify-content:center;"><button id="inputOkBtn">OK</button><button id="inputCancelBtn">Annuler</button></div></div>
             `;
             document.body.appendChild(modalDiv);
         }
@@ -494,6 +502,8 @@
         const field = document.getElementById('inputField');
         field.type = inputType || 'password';
         field.value = def || '';
+        const eye = document.getElementById('inputFieldEye');
+        if (eye) { eye.style.display = (field.type === 'password') ? 'block' : 'none'; eye.classList.remove('on'); }
         const forgot = document.getElementById('inputForgotLink');
         if (forgot) forgot.style.display = showForgot ? 'block' : 'none';
         document.getElementById('inputModal').classList.add('active');
@@ -541,6 +551,8 @@
         if (inputCancel) inputCancel.onclick = () => { window.closeInputModal(); const cb = pendingInputCallback; pendingInputCallback = null; if (cb) cb(null); };
         const inputForgot = document.getElementById('inputForgotLink');
         if (inputForgot) inputForgot.onclick = () => { window.closeInputModal(); const cb = pendingInputCallback; pendingInputCallback = null; if (cb) cb(null); setTimeout(startForgotFlow, 150); };
+        const inputFieldEye = document.getElementById('inputFieldEye');
+        if (inputFieldEye) inputFieldEye.onclick = () => { const f = document.getElementById('inputField'); const reveal = f.type === 'password'; f.type = reveal ? 'text' : 'password'; inputFieldEye.classList.toggle('on', reveal); };
         if (overlay) overlay.onclick = () => { window.closeConfirmModal(); window.closeInputModal(); window.closeInfoModal(); const cbC = pendingConfirmCallback, cbI = pendingInputCallback; pendingConfirmCallback = pendingInputCallback = null; if (cbC) cbC(false); if (cbI) cbI(null); document.getElementById('drawer')?.classList.remove('open'); };
     }
     // ---------- SAUVEGARDE / RESTAURATION AUTOMATIQUE ----------
@@ -657,6 +669,42 @@
         const num = q.match(/^\d{2,5}/);
         if (num) { const byId = conventionsDB.conventions.find(c => String(c.idcc) === num[0]); if (byId) return byId; }
         return conventionsDB.conventions.find(c => c.name.toLowerCase().includes(q)) || null;
+    }
+    // Palette de couleurs prédéfinies (tons doux, accordés à l'app)
+    const PROFILE_COLORS = ['#4A78B8', '#5A9E78', '#4F9D9A', '#8A7DB8', '#9B6A8F', '#C08497', '#C2795D', '#C4A35A', '#6B7A90', '#566074'];
+    // Sélecteur de couleur en pastilles : champ caché conservant la valeur (lecture .value inchangée)
+    function colorSwatchHtml(inputId, current) {
+        const cur = current || PROFILE_COLORS[0];
+        const dots = PROFILE_COLORS.map(c => `<span class="color-swatch${String(c).toLowerCase() === String(cur).toLowerCase() ? ' selected' : ''}" data-color="${c}" style="background:${c};"></span>`).join('');
+        return `<input type="hidden" id="${inputId}" value="${cur}"><div class="color-grid" data-target="${inputId}">${dots}</div>`;
+    }
+    function wireColorGrids() {
+        document.querySelectorAll('.color-grid').forEach(grid => {
+            const target = grid.getAttribute('data-target');
+            grid.querySelectorAll('.color-swatch').forEach(sw => {
+                sw.onclick = () => {
+                    const hidden = document.getElementById(target);
+                    if (hidden) hidden.value = sw.getAttribute('data-color');
+                    grid.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+                    sw.classList.add('selected');
+                };
+            });
+        });
+    }
+    // Champ mot de passe avec bouton œil (afficher/masquer)
+    function passwordFieldHtml(id, placeholder, autocomplete) {
+        return `<div class="pw-wrap"><input type="password" id="${id}" class="input-number"${placeholder ? ` placeholder="${placeholder}"` : ''}${autocomplete ? ` autocomplete="${autocomplete}"` : ''}><button type="button" class="pw-eye" data-target="${id}" aria-label="Afficher le mot de passe">👁</button></div>`;
+    }
+    function wirePwToggles() {
+        document.querySelectorAll('.pw-eye').forEach(btn => {
+            btn.onclick = () => {
+                const el = document.getElementById(btn.getAttribute('data-target'));
+                if (!el) return;
+                const reveal = el.type === 'password';
+                el.type = reveal ? 'text' : 'password';
+                btn.classList.toggle('on', reveal);
+            };
+        });
     }
     function generateHolidays(year) {
         const paques = (y) => {
@@ -840,7 +888,7 @@
                         <div style="text-align:center; margin-bottom:16px;"><div class="main-title logo-mark" style="font-size:1.7rem;">${LOGO_HTML}</div></div>
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-top:8px; margin-bottom:24px;">${title}</div>
                         <div class="welcome-group"><label>Nom de l'employeur${nameReq ? ' *' : ''} <span class="help-icon" data-help="Donnez un nom à cet employeur (souvent le nom de la société). Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="${escapeHtml(nameVal)}" placeholder="ex : nom de votre employeur"></div>
-                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur (repère visuel)</label><input type="color" id="wProfileColor" value="${colorVal}" style="height:44px;"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur (repère visuel)</label>${colorSwatchHtml('wProfileColor', colorVal)}</div>
                         <div class="inline-switch" style="margin-bottom:20px;">
                             <span id="modeSimpleLabel">Mode simple</span>
                             <label class="switch"><input type="checkbox" id="preciseModeToggle"><span class="slider"></span></label>
@@ -1186,6 +1234,7 @@
         });
         const cancelNewBtn = document.getElementById('cancelNewEmployerBtn');
         if (cancelNewBtn) cancelNewBtn.onclick = () => cancelNewEmployerConfig();
+        wireColorGrids();
     }
     // ---------- ASSISTANT DE CONFIGURATION (création guidée par étapes) ----------
     function showSetupWizard(isWelcome = true) {
@@ -1193,13 +1242,22 @@
         const root = document.getElementById('appRoot');
         const ap = getActiveProfile();
         const wr = workRules;
-        const colorVal = (ap && ap.color) || (userPrefs && userPrefs.accentColor) || '#0A84FF';
+        const colorVal = (ap && ap.color) || PROFILE_COLORS[0];
         const steps = [
             { t: "Ton employeur", s: "Donne-lui un nom et une couleur repère." },
             { t: "Ta rémunération", s: "Ces infos sont sur ta fiche de paie." },
             { t: "Tes majorations", s: "Choisis ta convention, ou vérifie les valeurs proposées." }
         ];
         const total = steps.length;
+        const moisOptions = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((m, i) => `<option value="${i}" ${(wr.thirteenthMonth && wr.thirteenthMonth.month === i) ? 'selected' : (i === 11 && !(wr.thirteenthMonth && wr.thirteenthMonth.month !== undefined) ? 'selected' : '')}>${m}</option>`).join('');
+        const primesHtml = (wr.primes || []).map((p, i) => `
+            <div class="inline-switch"><span>${escapeHtml(p.name)}</span><label class="switch"><input type="checkbox" class="wizPrimeEnabled" data-i="${i}" ${p.enabled ? 'checked' : ''}><span class="slider"></span></label></div>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <select class="wizPrimePeriod time-input-group select" data-i="${i}" style="flex:1;"><option value="daily" ${p.period === 'daily' ? 'selected' : ''}>Journalière</option><option value="monthly" ${p.period === 'monthly' ? 'selected' : ''}>Mensuelle</option></select>
+                <input type="text" class="wizPrimeAmount input-number" data-i="${i}" placeholder="Montant €" value="${p.amount ? p.amount : ''}" style="flex:1;">
+            </div>
+            ${p.name === 'Personnalisée' ? `<input type="text" class="wizPrimeCustom input-number" data-i="${i}" placeholder="Nom de la prime" value="${escapeHtml(p.customName || '')}" style="margin-bottom:10px;">` : ''}
+        `).join('');
         root.innerHTML = `
             <div class="app" style="justify-content:flex-start;">
                 <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:flex-start;">
@@ -1211,7 +1269,7 @@
                         <div class="wizard-panel" data-step="1">
                             <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:16px; text-align:center;">Ces réglages déterminent la précision de ton salaire calculé. 3 étapes rapides, modifiables à tout moment.</p>
                             <div class="welcome-group"><label>Nom de l'employeur * <span class="help-icon" data-help="Souvent le nom de la société. Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="" placeholder="ex : nom de votre employeur"></div>
-                            <div class="settings-group"><label>Couleur (repère visuel)</label><input type="color" id="wProfileColor" value="${colorVal}" style="height:44px;"></div>
+                            <div class="settings-group"><label>Couleur (repère visuel)</label>${colorSwatchHtml('wProfileColor', colorVal)}</div>
                         </div>
                         <div class="wizard-panel" data-step="2" style="display:none;">
                             <div class="welcome-group"><label>Taux horaire brut (€) * <span class="help-icon" data-help="Fiche de paie : ligne « Salaire de base » ou taux horaire indiqué.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${wr.tauxBrut}"></div>
@@ -1237,7 +1295,22 @@
                             <div class="welcome-group"><label>Heures sup. au-delà de (h/jour)</label><input type="text" id="wOvertimeThreshold" class="input-number" value="${wr.overtimeThreshold}"></div>
                             <div class="welcome-group"><label>Majoration heures sup. (%)</label><input type="text" id="wOvertimeRate" class="input-number" value="${Math.round(wr.overtimeRate * 100)}"></div>
                             <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${wr.roundingRule === 'none' ? 'selected' : ''}>Aucun</option><option value="minute" ${wr.roundingRule === 'minute' ? 'selected' : ''}>Minute</option><option value="5min" ${wr.roundingRule === '5min' ? 'selected' : ''}>5 minutes</option><option value="10min" ${wr.roundingRule === '10min' ? 'selected' : ''}>10 minutes</option><option value="15min" ${wr.roundingRule === '15min' ? 'selected' : ''}>15 minutes</option></select></div>
-                            <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:6px;">Primes, ancienneté, 13e mois… s'ajoutent ensuite dans « Mon employeur ».</p>
+                            <details class="help-section" style="margin-top:14px;">
+                                <summary>Réglages avancés (facultatif)</summary>
+                                <div class="card-title" style="margin:6px 0;">Primes</div>
+                                ${primesHtml}
+                                <div class="card-title" style="margin:12px 0 6px;">Prime d'ancienneté</div>
+                                <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wAncienneteEnabled" ${wr.ancienneteEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                                <div class="welcome-group"><label>Type</label><select id="wAncienneteType" class="time-input-group select"><option value="percent" ${wr.ancienneteType === 'percent' ? 'selected' : ''}>% par année</option><option value="fixed" ${wr.ancienneteType === 'fixed' ? 'selected' : ''}>Montant fixe mensuel (€)</option></select></div>
+                                <div class="welcome-group"><label>Valeur</label><input type="text" id="wAncienneteValue" class="input-number" value="${wr.ancienneteValue || 1}"></div>
+                                <div class="welcome-group"><label>Date d'entrée (année-mois)</label><input type="month" id="wAncienneteStartDate" value="${wr.ancienneteStartDate || '2020-01'}"></div>
+                                <div class="card-title" style="margin:12px 0 6px;">13e mois</div>
+                                <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wThirteenthEnabled" ${(wr.thirteenthMonth && wr.thirteenthMonth.enabled) ? 'checked' : ''}><span class="slider"></span></label></div>
+                                <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'once') ? 'selected' : ''}>Versé en une fois</option><option value="monthly" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'monthly') ? 'selected' : ''}>Mensualisé</option></select></div>
+                                <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" value="${(wr.thirteenthMonth && wr.thirteenthMonth.amount) ? wr.thirteenthMonth.amount : ''}" placeholder="Montant"></div>
+                                <div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select">${moisOptions}</select></div>
+                                <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:4px;">Options plus fines (statut détaillé, seuils d'heures sup avancés…) : dans « Mon employeur ».</p>
+                            </details>
                         </div>
                         <div style="display:flex; gap:10px; margin-top:22px;">
                             <button class="btn btn-secondary" id="wizPrev" style="flex:1;">Précédent</button>
@@ -1251,7 +1324,7 @@
         let cur = 1;
         function renderStep() {
             document.querySelectorAll('.wizard-panel').forEach(p => { p.style.display = (parseInt(p.dataset.step) === cur) ? 'block' : 'none'; });
-            document.getElementById('wizardStepTitle').innerText = `Étape ${cur} sur ${total} — ${steps[cur - 1].t}`;
+            document.getElementById('wizardStepTitle').innerText = steps[cur - 1].t;
             document.getElementById('wizardStepSub').innerText = steps[cur - 1].s;
             document.querySelectorAll('.wizard-dot').forEach(d => { const n = parseInt(d.dataset.n); d.classList.toggle('active', n === cur); d.classList.toggle('done', n < cur); });
             document.getElementById('wizPrev').style.visibility = (cur === 1) ? 'hidden' : 'visible';
@@ -1271,6 +1344,7 @@
         document.getElementById('wizNext').onclick = () => { if (!validateStep()) return; if (cur < total) { cur++; renderStep(); window.scrollTo(0, 0); } else { finishWizard(); } };
         const wizCancel = document.getElementById('wizCancel');
         if (wizCancel) wizCancel.onclick = () => cancelNewEmployerConfig();
+        wireColorGrids();
         // Calcul automatique brut -> net
         const tauxBrutInput = document.getElementById('wTauxBrut');
         const tauxNetInput = document.getElementById('wTauxNet');
@@ -1334,6 +1408,30 @@
             workRules.overtimeThreshold = parseFloat(document.getElementById('wOvertimeThreshold').value.replace(',', '.')) || 0;
             workRules.overtimeRate = (parseFloat(document.getElementById('wOvertimeRate').value) || 0) / 100;
             workRules.roundingRule = document.getElementById('wRoundingRule').value;
+            // Réglages avancés (facultatif)
+            workRules.primes = (workRules.primes || []).map((p, i) => {
+                const en = document.querySelector(`.wizPrimeEnabled[data-i="${i}"]`);
+                const per = document.querySelector(`.wizPrimePeriod[data-i="${i}"]`);
+                const amt = document.querySelector(`.wizPrimeAmount[data-i="${i}"]`);
+                const cus = document.querySelector(`.wizPrimeCustom[data-i="${i}"]`);
+                const amount = amt ? (parseFloat(amt.value.replace(',', '.')) || 0) : (p.amount || 0);
+                return { name: p.name, enabled: (en ? en.checked : (p.enabled || false)) && amount > 0, period: per ? per.value : (p.period || 'monthly'), amount, customName: cus ? cus.value : (p.customName || '') };
+            });
+            const ancEn = document.getElementById('wAncienneteEnabled');
+            workRules.ancienneteEnabled = ancEn ? ancEn.checked : false;
+            if (workRules.ancienneteEnabled) {
+                workRules.ancienneteType = document.getElementById('wAncienneteType').value;
+                workRules.ancienneteValue = parseFloat(document.getElementById('wAncienneteValue').value.replace(',', '.')) || 0;
+                workRules.ancienneteStartDate = document.getElementById('wAncienneteStartDate').value || '2020-01';
+            }
+            const thEn = document.getElementById('wThirteenthEnabled');
+            if (!workRules.thirteenthMonth) workRules.thirteenthMonth = { enabled: false, type: 'once', amount: 0, month: 11 };
+            workRules.thirteenthMonth.enabled = thEn ? thEn.checked : false;
+            if (workRules.thirteenthMonth.enabled) {
+                workRules.thirteenthMonth.type = document.getElementById('wThirteenthType').value;
+                workRules.thirteenthMonth.amount = parseFloat(document.getElementById('wThirteenthAmount').value.replace(',', '.')) || 0;
+                workRules.thirteenthMonth.month = parseInt(document.getElementById('wThirteenthMonth').value);
+            }
             workRules.holidaysList = generateHolidays(new Date().getFullYear());
             saveWorkRules();
             if (isWelcome) {
@@ -1351,10 +1449,24 @@
                 p.rules = JSON.parse(JSON.stringify(workRules));
                 persistProfiles();
             }
-            customConfirm("Employeur enregistré. Veux-tu ajouter un autre employeur ?", (ok) => {
-                if (ok) { startNewEmployerConfig(); }
-                else { pendingPrevProfileId = null; loadMainApp(); }
-            });
+            showWizardDone(profName);
+        }
+        function showWizardDone(name) {
+            root.innerHTML = `
+                <div class="app" style="justify-content:flex-start;">
+                    <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:flex-start;">
+                        <div class="card" style="width:100%; text-align:center;">
+                            <div class="main-title logo-mark" style="font-size:1.5rem; justify-content:center;">${LOGO_HTML}</div>
+                            <div style="font-size:2.6rem; color:var(--salary-net); margin:16px 0 4px;">✓</div>
+                            <div class="card-title" style="font-size:1.15rem; color:var(--text-primary); margin-bottom:6px;">${escapeHtml(name)} enregistré</div>
+                            <p style="font-size:0.85rem; color:var(--text-secondary); margin:0 0 22px;">Tout est prêt. Tu peux ouvrir l'application, ou configurer un autre employeur.</p>
+                            <button class="btn btn-primary" id="wizDoneOpen" style="display:block; width:100%;">Ouvrir l'application</button>
+                            <button class="btn btn-secondary" id="wizDoneAdd" style="display:block; width:100%; margin-top:10px;">Ajouter un autre employeur</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('wizDoneOpen').onclick = () => { pendingPrevProfileId = null; loadMainApp(); };
+            document.getElementById('wizDoneAdd').onclick = () => { startNewEmployerConfig(); };
         }
         renderStep();
     }
@@ -1369,15 +1481,15 @@
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-bottom:24px;">Réglages</div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Mode sombre</label><select id="darkModeSelect" class="time-input-group select"><option value="auto" ${userPrefs.autoDarkMode?'selected':''}>Automatique (système)</option><option value="light" ${!userPrefs.autoDarkMode && !userPrefs.darkMode?'selected':''}>Clair</option><option value="dark" ${!userPrefs.autoDarkMode && userPrefs.darkMode?'selected':''}>Sombre</option></select></div>
                         <div class="inline-switch" style="margin-bottom:20px;"><span>Mode nuit automatique (selon plage horaire)</span><label class="switch"><input type="checkbox" id="autoNightModeToggle" ${userPrefs.autoNightMode?'checked':''}><span class="slider"></span></label></div>
-                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur principale</label><input type="color" id="accentColorPicker" value="${userPrefs.accentColor}" style="height:44px;"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Couleur principale</label>${colorSwatchHtml('accentColorPicker', userPrefs.accentColor)}</div>
                         <div class="inline-switch" style="margin-bottom:20px;"><span>Affichage compact</span><label class="switch"><input type="checkbox" id="compactModeToggle" ${userPrefs.compactMode?'checked':''}><span class="slider"></span></label></div>
                         <div class="inline-switch" style="margin-bottom:20px;"><span>Haute lisibilité (contraste élevé)</span><label class="switch"><input type="checkbox" id="highContrastToggle" ${userPrefs.highContrast?'checked':''}><span class="slider"></span></label></div>
                         <div class="inline-switch" style="margin-bottom:20px;"><span>Haute performance (désactiver animations)</span><label class="switch"><input type="checkbox" id="highPerfToggle" ${userPrefs.highPerformance?'checked':''}><span class="slider"></span></label></div>
                         <hr>
                         <div class="card-title">Changer le mot de passe de verrouillage</div>
-                        <div class="settings-group" style="margin-bottom:20px;"><label>Mot de passe actuel</label><input type="password" id="currentPwd" class="input-number"></div>
-                        <div class="settings-group" style="margin-bottom:20px;"><label>Nouveau mot de passe</label><input type="password" id="newPwd" class="input-number"></div>
-                        <div class="settings-group" style="margin-bottom:20px;"><label>Confirmer le nouveau mot de passe</label><input type="password" id="confirmPwd" class="input-number"></div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Mot de passe actuel</label>${passwordFieldHtml('currentPwd')}</div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Nouveau mot de passe</label>${passwordFieldHtml('newPwd')}</div>
+                        <div class="settings-group" style="margin-bottom:20px;"><label>Confirmer le nouveau mot de passe</label>${passwordFieldHtml('confirmPwd')}</div>
                         <hr>
                         <div class="card-title">Question secrète (mot de passe oublié) <span class="help-icon" data-help="Si vous oubliez le mot de passe de verrouillage, répondre à cette question permettra d'en définir un nouveau.">ℹ️</span></div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Question</label><input type="text" id="secretQ" class="input-number" placeholder="ex : nom de mon premier animal" value="${(localStorage.getItem('lockSecretQ') || '').replace(/"/g, '&quot;')}"></div>
@@ -1451,6 +1563,8 @@
             });
         });
         document.getElementById('backToAppBtn').addEventListener('click', () => loadMainApp());
+        wireColorGrids();
+        wirePwToggles();
     }
     // ---------- PAGE CUMUL HEBDOMADAIRE ----------
     function showWeeklyPage() {
@@ -1549,7 +1663,7 @@
             </div>
             <div class="card">
                 <div class="welcome-group"><label>Nom de l'employeur</label><input type="text" id="editProfileName" class="input-number" value="${escapeHtml(p.name)}"></div>
-                <div class="settings-group"><label>Couleur</label><input type="color" id="editProfileColor" value="${p.color || '#0A84FF'}" style="height:44px;"></div>
+                <div class="settings-group"><label>Couleur</label>${colorSwatchHtml('editProfileColor', p.color || PROFILE_COLORS[0])}</div>
                 <button class="btn btn-primary" id="saveProfileBtn" style="display:block; width:100%;">Enregistrer</button>
                 <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:10px;">Pour régler les taux, majorations et primes de cet employeur, activez-le puis ouvrez « Mon employeur ».</p>
                 <hr>
@@ -1558,6 +1672,7 @@
             </div>
         `;
         document.getElementById('backEditProfBtn').onclick = () => showProfilesPage();
+        wireColorGrids();
         document.getElementById('saveProfileBtn').onclick = () => {
             const name = document.getElementById('editProfileName').value.trim();
             if (!name) { showInfoModal("Le nom ne peut pas être vide."); return; }
@@ -1618,9 +1733,9 @@
                         <div class="main-title logo-mark" style="font-size:1.8rem; margin-bottom:6px;">${LOGO_HTML}</div>
                         <p style="text-align:center; color:var(--text-secondary); font-size:0.85rem; margin-bottom:20px;">${isSignup ? "Créez votre compte : il sécurise l'app et synchronise vos données entre vos appareils." : "Connectez-vous pour ouvrir l'application."}</p>
                         <div class="welcome-group"><label>E-mail</label><input type="email" id="authEmail" class="input-number" autocomplete="email"></div>
-                        <div class="welcome-group"><label>Mot de passe ${isSignup ? '<span class="help-icon" data-help="6 caractères minimum. Ce mot de passe servira aussi à verrouiller et déverrouiller l’écran de l’app.">ℹ️</span>' : ''}</label><input type="password" id="authPwd" class="input-number" autocomplete="${isSignup ? 'new-password' : 'current-password'}"></div>
+                        <div class="welcome-group"><label>Mot de passe ${isSignup ? '<span class="help-icon" data-help="6 caractères minimum. Ce mot de passe servira aussi à verrouiller et déverrouiller l’écran de l’app.">ℹ️</span>' : ''}</label>${passwordFieldHtml('authPwd', '', isSignup ? 'new-password' : 'current-password')}</div>
                         ${isSignup ? `
-                        <div class="welcome-group"><label>Confirmez le mot de passe</label><input type="password" id="authPwd2" class="input-number" autocomplete="new-password"></div>
+                        <div class="welcome-group"><label>Confirmez le mot de passe</label>${passwordFieldHtml('authPwd2', '', 'new-password')}</div>
                         <div class="welcome-group"><label>Question secrète <span class="help-icon" data-help="Permet de redéfinir le mot de passe de verrouillage de l'écran si vous l'oubliez.">ℹ️</span></label><input type="text" id="authSecretQ" class="input-number" placeholder="ex : nom de mon premier animal"></div>
                         <div class="welcome-group"><label>Réponse secrète</label><input type="text" id="authSecretA" class="input-number"></div>` : ''}
                         <button class="btn btn-primary" id="authSubmitBtn" style="display:block; width:100%;">${isSignup ? 'Créer mon compte' : 'Se connecter'}</button>
@@ -1632,6 +1747,7 @@
                 </div>
             </div>`;
         document.getElementById('authSwitchBtn').onclick = () => showAuthPage(isSignup ? 'login' : 'signup');
+        wirePwToggles();
         document.getElementById('authGoogleBtn').onclick = () => {
             const provider = new firebase.auth.GoogleAuthProvider();
             fbAuth.signInWithPopup(provider).catch(err => showInfoModal(authErrMsg(err)));
