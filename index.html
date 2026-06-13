@@ -158,6 +158,8 @@
         .btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-hover); }
         .btn-stop { background: transparent; color: var(--btn-stop-bg); align-self: center; padding: 10px 18px; }
         .btn-stop:hover:not(:disabled) { background: rgba(229, 72, 77, 0.10); }
+        #stopDayBtn { background: var(--btn-stop-bg); color: #fff; align-self: center; padding: 12px 28px; box-shadow: var(--shadow-sm); }
+        #stopDayBtn:hover:not(:disabled) { background: var(--btn-stop-hover); }
         .salary-row { display: flex; gap: 12px; margin-bottom: 4px; }
         .salary-card { flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 14px; text-align: center; backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
         .salary-card > div:last-child { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
@@ -2064,6 +2066,11 @@
                         <div class="forgot-link" id="forgotLink">Oublié de lancer ? → Saisie manuelle</div>
                     </div>
                     <div class="salary-row"><div class="salary-card"><div class="salary-value brut" id="brutTotal">0,00 €</div><div>Brut</div></div><div class="salary-card"><div class="salary-value net" id="netTotal">0,00 €</div><div>Net</div></div></div>
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:12px;">Majorations</div>
+                        <div id="activeMaj"></div>
+                        <div id="majDetails"></div>
+                    </div>
                     <div class="card" id="weekCard" style="cursor:pointer; padding:14px 18px;">
                         <div class="week-line"><span>Cette semaine</span><span id="weekHours">–</span></div>
                         <div class="week-line sub"><span id="weekBalanceLabel">Solde hebdo</span><span id="weekBalance">–</span></div>
@@ -2076,11 +2083,6 @@
                     <div class="card">
                         <div class="card-header"><span class="card-title">Pauses courtes</span><span class="counter-value" id="shortPauseTime">00:00:00</span></div>
                         <div class="button-group"><button class="btn btn-lunch" id="shortPauseToggleBtn">Pause courte</button></div>
-                    </div>
-                    <div class="card">
-                        <div class="card-title" style="margin-bottom:12px;">Majorations</div>
-                        <div id="activeMaj"></div>
-                        <div id="majDetails"></div>
                     </div>
                     <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
                     <button class="btn btn-stop" id="stopDayBtn">Arrêter la journée</button>
