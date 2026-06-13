@@ -210,6 +210,11 @@
         .prime-custom-name { margin-top: 8px; }
         .stats-summary { margin-bottom: 16px; text-align: center; font-size: 0.9rem; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 12px; }
         .today-btn { display: inline-block; margin-top: 8px; cursor: pointer; color: var(--accent); text-decoration: underline; font-size: 0.8rem; }
+        .profile-bar { display: flex; justify-content: center; margin-top: -6px; }
+        .profile-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 100px; padding: 6px 14px; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); cursor: pointer; transition: var(--transition); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .profile-chip:active { transform: scale(0.97); }
+        .profile-chip .chev { color: var(--text-secondary); font-size: 0.7rem; }
+        .profile-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         /* Styles pour l'aide en accordéons */
         .help-section summary {
             cursor: pointer;
@@ -307,13 +312,87 @@
     function closeOpenSegment() { const s = workSegments[workSegments.length - 1]; if (s && !s.end) s.end = Date.now(); }
     function openSegment() { workSegments.push({ start: Date.now(), end: null }); }
     function loadLeaveData() { const s = localStorage.getItem('leaveData'); if (s) { try { leaveData = { ...leaveData, ...JSON.parse(s) }; if (!Array.isArray(leaveData.days)) leaveData.days = []; } catch(e) {} } }
-    function saveLeaveData() { localStorage.setItem('leaveData', JSON.stringify(leaveData)); }
+    function saveLeaveData() { localStorage.setItem('leaveData', JSON.stringify(leaveData)); commitActiveProfile(); }
     function countLeaveDays(d1, d2) {
         return leaveData.days.filter(j => { const d = new Date(j.date + 'T12:00:00'); return d >= d1 && d <= d2; }).length;
     }
     function monthsSince(refMonth) { if (!refMonth) return 0; const [y, m] = refMonth.split('-').map(Number); const now = new Date(); return Math.max(0, (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m)); }
     function cpBalance() { return leaveData.cpInit + leaveData.cpMonthly * monthsSince(leaveData.refMonth) - leaveData.days.filter(d => d.type === 'CP').length; }
     function rttBalance() { return leaveData.rttInit - leaveData.days.filter(d => d.type === 'RTT').length; }
+
+    // ---------- PROFILS (multi-employeurs) ----------
+    // Les variables globales workRules/sessions/leaveData reflètent TOUJOURS le profil actif.
+    // Tout le moteur de calcul/affichage existant continue donc de fonctionner sans modification.
+    const DEFAULT_WORK_RULES = JSON.parse(JSON.stringify(workRules));
+    const DEFAULT_LEAVE_DATA = JSON.parse(JSON.stringify(leaveData));
+    let profiles = [];
+    let activeProfileId = null;
+    function genProfileId() { return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    function persistProfiles() { try { localStorage.setItem('profiles', JSON.stringify({ activeId: activeProfileId, list: profiles })); } catch (e) {} }
+    function getActiveProfile() { return profiles.find(p => p.id === activeProfileId) || profiles[0] || null; }
+    // Synchronise les globales (profil actif) dans la structure profiles puis persiste
+    function commitActiveProfile() { const p = getActiveProfile(); if (!p) return; p.rules = workRules; p.leave = leaveData; p.sessions = sessions; persistProfiles(); }
+    function saveSessions() { try { localStorage.setItem('workSessions', JSON.stringify(sessions)); } catch (e) {} commitActiveProfile(); }
+    function loadProfiles() {
+        let parsed = null;
+        try { const raw = localStorage.getItem('profiles'); if (raw) parsed = JSON.parse(raw); } catch (e) {}
+        if (parsed && Array.isArray(parsed.list) && parsed.list.length) {
+            profiles = parsed.list;
+            activeProfileId = parsed.activeId;
+        } else {
+            // Migration depuis l'ancien format mono-profil (sans aucune perte)
+            let r = null, l = null, s = [];
+            try { const rr = localStorage.getItem('workRules'); if (rr) r = JSON.parse(rr); } catch (e) {}
+            try { const ll = localStorage.getItem('leaveData'); if (ll) l = JSON.parse(ll); } catch (e) {}
+            try { const ss = localStorage.getItem('workSessions'); if (ss) s = JSON.parse(ss); } catch (e) {}
+            profiles = [{ id: genProfileId(), name: 'Mon profil', color: (userPrefs && userPrefs.accentColor) || '#0A84FF', rules: r, leave: l, sessions: Array.isArray(s) ? s : [] }];
+            activeProfileId = profiles[0].id;
+            persistProfiles();
+        }
+        profiles.forEach(p => { if (!p.id) p.id = genProfileId(); if (!p.name) p.name = 'Profil'; if (!Array.isArray(p.sessions)) p.sessions = []; });
+        if (!activeProfileId || !profiles.some(p => p.id === activeProfileId)) activeProfileId = profiles[0].id;
+    }
+    function applyActiveProfileToGlobals() {
+        const p = getActiveProfile(); if (!p) return;
+        // Règles de paie : fusion avec les valeurs par défaut pour combler les champs absents
+        workRules = { ...JSON.parse(JSON.stringify(DEFAULT_WORK_RULES)), ...(p.rules || {}) };
+        workRules.primes = (Array.isArray(workRules.primes) ? workRules.primes : []).map(pr => ({ name: pr.name, enabled: pr.enabled || false, period: pr.period || 'monthly', amount: pr.amount || 0, customName: pr.customName || '' }));
+        if (!workRules.primes.length) workRules.primes = JSON.parse(JSON.stringify(DEFAULT_WORK_RULES.primes));
+        if (!workRules.thirteenthMonth) workRules.thirteenthMonth = JSON.parse(JSON.stringify(DEFAULT_WORK_RULES.thirteenthMonth));
+        if (!workRules.holidaysList || !workRules.holidaysList.length) workRules.holidaysList = generateHolidays(new Date().getFullYear());
+        // Congés / RTT
+        leaveData = { ...JSON.parse(JSON.stringify(DEFAULT_LEAVE_DATA)), ...(p.leave || {}) };
+        if (!Array.isArray(leaveData.days)) leaveData.days = [];
+        // Sessions
+        sessions = (Array.isArray(p.sessions) ? p.sessions : []).filter(s => s && s.date && s.workTime);
+        // On re-pointe la structure profil sur ces mêmes références (intégrité après filtrage)
+        p.rules = workRules; p.leave = leaveData; p.sessions = sessions;
+        // Miroir dans les clés héritées (compat cloud / vérif premier lancement)
+        try { const k = localStorage; k.setItem('workRules', JSON.stringify(workRules)); k.setItem('leaveData', JSON.stringify(leaveData)); k.setItem('workSessions', JSON.stringify(sessions)); } catch (e) {}
+    }
+    // Crée un nouveau profil (règles par défaut, historique vierge) et renvoie son id
+    function createProfile(name) {
+        const prof = { id: genProfileId(), name: (name || 'Nouveau profil').trim() || 'Nouveau profil', color: (userPrefs && userPrefs.accentColor) || '#0A84FF', rules: JSON.parse(JSON.stringify(DEFAULT_WORK_RULES)), leave: JSON.parse(JSON.stringify(DEFAULT_LEAVE_DATA)), sessions: [] };
+        profiles.push(prof); persistProfiles(); return prof.id;
+    }
+    function duplicateProfile(id) {
+        const src = profiles.find(p => p.id === id); if (!src) return null;
+        const prof = { id: genProfileId(), name: (src.name || 'Profil') + ' (copie)', color: src.color || '#0A84FF', rules: JSON.parse(JSON.stringify(src.rules || DEFAULT_WORK_RULES)), leave: JSON.parse(JSON.stringify(src.leave || DEFAULT_LEAVE_DATA)), sessions: [] };
+        profiles.push(prof); persistProfiles(); return prof.id;
+    }
+    // Bascule de profil — bloquée si une journée est en cours (sécurité anti-mélange d'heures)
+    function switchProfile(id) {
+        if (id === activeProfileId) return;
+        if (workRunning || (workSeconds + lunchSeconds + shortPauseSeconds) > 0) {
+            showInfoModal("Terminez d'abord la journée en cours (« Arrêter la journée ») avant de changer de profil, pour ne pas mélanger les heures.");
+            return;
+        }
+        commitActiveProfile();
+        activeProfileId = id;
+        persistProfiles();
+        localStorage.removeItem('autoSaveState');
+        loadMainApp();
+    }
 
     // ---------- FIREBASE (sauvegarde cloud) ----------
     // Remplacez par la config de votre projet Firebase (Console > Paramètres du projet > Vos applications)
@@ -532,6 +611,7 @@
     function toLocalISO(d) {
         return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
     }
+    function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
     function generateHolidays(year) {
         const paques = (y) => {
             const a = y % 19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4;
@@ -553,7 +633,7 @@
         return holidays;
     }
     function initDefaultWorkRules() { workRules.holidaysList = generateHolidays(new Date().getFullYear()); }
-    function saveWorkRules() { localStorage.setItem('workRules', JSON.stringify(workRules)); }
+    function saveWorkRules() { localStorage.setItem('workRules', JSON.stringify(workRules)); commitActiveProfile(); }
     function loadWorkRules() {
         const stored = localStorage.getItem('workRules');
         if (stored) {
@@ -1182,6 +1262,104 @@
         `;
         document.getElementById('backWeeklyBtn').onclick = () => loadMainApp();
     }
+    // ---------- PAGE PROFILS ----------
+    function showProfilesPage() {
+        const mainDiv = document.querySelector('.main-card');
+        if (!mainDiv) return;
+        const cards = profiles.map(p => {
+            const active = p.id === activeProfileId;
+            const count = (p.sessions || []).length;
+            return `<div class="card" style="padding:14px 16px; display:flex; align-items:center; gap:12px;">
+                <span class="profile-dot" style="background:${p.color || '#0A84FF'}; width:14px; height:14px;"></span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}${active ? ' · <span style="color:var(--salary-net);">actif</span>' : ''}</div>
+                    <div style="font-size:0.75rem; color:var(--text-secondary);">${count} session${count > 1 ? 's' : ''}</div>
+                </div>
+                ${active ? '' : `<button class="btn btn-secondary profile-activate" data-id="${p.id}" style="padding:8px 14px; font-size:0.82rem;">Activer</button>`}
+                <button class="btn btn-secondary profile-edit" data-id="${p.id}" style="padding:8px 12px; font-size:0.9rem;">⚙︎</button>
+            </div>`;
+        }).join('');
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="back-btn" id="backProfilesBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Profils</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="card" style="padding:14px 18px;"><p style="font-size:0.85rem; color:var(--text-secondary); margin:0; line-height:1.5;">Chaque profil correspond à un employeur : il a ses propres taux, majorations, congés et historique. Un seul profil est actif à la fois. Terminez la journée en cours avant de basculer.</p></div>
+            ${cards}
+            <button class="btn btn-primary" id="addProfileBtn" style="margin-top:8px; display:block; width:100%;">+ Nouveau profil</button>
+        `;
+        document.getElementById('backProfilesBtn').onclick = () => loadMainApp();
+        document.querySelectorAll('.profile-activate').forEach(b => b.onclick = () => switchProfile(b.getAttribute('data-id')));
+        document.querySelectorAll('.profile-edit').forEach(b => b.onclick = () => showProfileEditPage(b.getAttribute('data-id')));
+        document.getElementById('addProfileBtn').onclick = () => {
+            showInputModal("Nom du nouveau profil (ex : nom de l'employeur)", (name) => {
+                if (name === null) return;
+                const trimmed = (name || '').trim();
+                if (!trimmed) { showInfoModal("Saisissez un nom."); return; }
+                createProfile(trimmed);
+                showProfilesPage();
+                showInfoModal("Profil créé. Activez-le, puis ouvrez « Mon profil » pour régler ses taux et majorations.");
+            }, "", 'text');
+        };
+    }
+    function showProfileEditPage(id) {
+        const p = profiles.find(x => x.id === id);
+        if (!p) { showProfilesPage(); return; }
+        const mainDiv = document.querySelector('.main-card');
+        if (!mainDiv) return;
+        mainDiv.innerHTML = `
+            <div class="top-bar">
+                <div class="left-group"><button class="back-btn" id="backEditProfBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14.5 5 L8 12 L14.5 19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Retour</button></div>
+                <div class="title-container"><div class="main-title" style="font-size:1.2rem;">Modifier le profil</div></div>
+                <div class="right-group"></div>
+            </div>
+            <div class="card">
+                <div class="welcome-group"><label>Nom du profil</label><input type="text" id="editProfileName" class="input-number" value="${escapeHtml(p.name)}"></div>
+                <div class="settings-group"><label>Couleur</label><input type="color" id="editProfileColor" value="${p.color || '#0A84FF'}" style="height:44px;"></div>
+                <button class="btn btn-primary" id="saveProfileBtn" style="display:block; width:100%;">Enregistrer</button>
+                <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:10px;">Pour régler les taux, majorations et primes de ce profil, activez-le puis ouvrez « Mon profil ».</p>
+                <hr>
+                <button class="btn btn-secondary" id="dupProfileBtn" style="display:block; width:100%;">Dupliquer ce profil</button>
+                <button class="btn btn-stop" id="delProfileBtn" style="display:block; width:100%; margin-top:8px;">Supprimer ce profil</button>
+            </div>
+        `;
+        document.getElementById('backEditProfBtn').onclick = () => showProfilesPage();
+        document.getElementById('saveProfileBtn').onclick = () => {
+            const name = document.getElementById('editProfileName').value.trim();
+            if (!name) { showInfoModal("Le nom ne peut pas être vide."); return; }
+            p.name = name;
+            p.color = document.getElementById('editProfileColor').value;
+            persistProfiles();
+            showProfilesPage();
+            showInfoModal("Profil mis à jour.");
+        };
+        document.getElementById('dupProfileBtn').onclick = () => {
+            duplicateProfile(id);
+            showProfilesPage();
+            showInfoModal("Profil dupliqué (réglages copiés, historique vierge).");
+        };
+        document.getElementById('delProfileBtn').onclick = () => {
+            if (profiles.length <= 1) { showInfoModal("Impossible de supprimer le dernier profil."); return; }
+            customConfirm(`Supprimer le profil « ${p.name} » et tout son historique ? Action définitive.`, (ok) => {
+                if (!ok) return;
+                commitActiveProfile();
+                const wasActive = id === activeProfileId;
+                profiles = profiles.filter(x => x.id !== id);
+                if (wasActive) {
+                    activeProfileId = profiles[0].id;
+                    persistProfiles();
+                    localStorage.removeItem('autoSaveState');
+                    loadMainApp();
+                    showInfoModal("Profil supprimé. Profil actif : " + (getActiveProfile() ? getActiveProfile().name : ''));
+                } else {
+                    persistProfiles();
+                    showProfilesPage();
+                    showInfoModal("Profil supprimé.");
+                }
+            });
+        };
+    }
     // ---------- AUTHENTIFICATION (COMPTE OBLIGATOIRE) ----------
     function authErrMsg(err) {
         const c = (err && err.code) || '';
@@ -1460,13 +1638,15 @@
         saveBtn.onclick = () => {
             const user = fbAuth.currentUser;
             if (!user) return;
+            commitActiveProfile();
             saveBtn.disabled = true;
             fbDb.collection('users').doc(user.uid).set({
+                profiles: { activeId: activeProfileId, list: profiles },
                 sessions: sessions,
                 workRules: workRules,
                 leaves: leaveData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => showInfoModal("Données sauvegardées dans le cloud."))
+            }).then(() => showInfoModal("Données sauvegardées dans le cloud (" + profiles.length + " profil" + (profiles.length > 1 ? 's' : '') + ")."))
               .catch(err => showInfoModal("Erreur de sauvegarde : " + err.message))
               .finally(() => { saveBtn.disabled = false; });
         };
@@ -1479,6 +1659,18 @@
                 fbDb.collection('users').doc(user.uid).get().then(doc => {
                     if (!doc.exists) { showInfoModal("Aucune sauvegarde cloud trouvée."); return; }
                     const data = doc.data();
+                    // Sauvegarde multi-profils : remplace l'ensemble des profils locaux
+                    if (data.profiles && Array.isArray(data.profiles.list) && data.profiles.list.length) {
+                        profiles = data.profiles.list;
+                        profiles.forEach(p => { if (!p.id) p.id = genProfileId(); if (!p.name) p.name = 'Profil'; if (!Array.isArray(p.sessions)) p.sessions = []; });
+                        activeProfileId = (data.profiles.activeId && profiles.some(p => p.id === data.profiles.activeId)) ? data.profiles.activeId : profiles[0].id;
+                        persistProfiles();
+                        applyActiveProfileToGlobals();
+                        renderHistory();
+                        showInfoModal("Restauration terminée : " + profiles.length + " profil(s) chargé(s) depuis le cloud.");
+                        return;
+                    }
+                    // Ancienne sauvegarde mono-profil : fusion dans le profil actif
                     let added = 0;
                     if (Array.isArray(data.sessions)) {
                         for (const s of data.sessions) {
@@ -1488,7 +1680,7 @@
                         }
                         sessions.sort((a,b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-')));
                         if (sessions.length > 50) sessions = sessions.slice(0,50);
-                        localStorage.setItem('workSessions', JSON.stringify(sessions));
+                        saveSessions();
                     }
                     if (data.workRules) {
                         workRules = { ...workRules, ...data.workRules };
@@ -1530,7 +1722,7 @@
                 if (added > 0) {
                     sessions.sort((a,b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-')));
                     if (sessions.length > 50) sessions = sessions.slice(0,50);
-                    localStorage.setItem('workSessions', JSON.stringify(sessions));
+                    saveSessions();
                     renderHistory();
                     showInfoModal(`${added} session(s) importée(s).`);
                 } else {
@@ -1546,7 +1738,7 @@
         customConfirm("Supprimer cette session ?", (ok) => {
             if (ok) {
                 sessions.splice(index, 1);
-                localStorage.setItem('workSessions', JSON.stringify(sessions));
+                saveSessions();
                 renderHistory();
                 showInfoModal("Session supprimée.");
             }
@@ -1645,10 +1837,10 @@
     }
     // ---------- APPLICATION PRINCIPALE ----------
     function loadMainApp() {
-        loadWorkRules();
         loadPrefs();
         loadLockPassword();
-        loadLeaveData();
+        loadProfiles();
+        applyActiveProfileToGlobals();
         locked = localStorage.getItem('lockedState') === '1';
         // Render main app first
         renderMainApp();
@@ -1665,9 +1857,9 @@
         updateAllDisplays();
         updateButtonsUI();
         // Note : ne PAS arrêter le timer ici — il doit continuer si le travail est en cours
-        const stored = localStorage.getItem('workSessions');
-        sessions = stored ? JSON.parse(stored) : [];
-        sessions = sessions.filter(s => s && s.date && s.workTime);
+        // sessions est déjà chargé depuis le profil actif (applyActiveProfileToGlobals)
+        sessions = (sessions || []).filter(s => s && s.date && s.workTime);
+        const _activeP = getActiveProfile(); if (_activeP) _activeP.sessions = sessions;
         renderHistory();
         startAutoSave();
         startNightModeWatcher();
@@ -1848,7 +2040,7 @@
         const session = { date: dateStr, timeOfDay: timeStr, startTime: firstStart, workTime: formatTime(rounded), lunchTime: formatTime(lunchSeconds), shortPauseTime: formatTime(shortPauseSeconds), brut: brutTotal.toFixed(2), net: netTotal.toFixed(2), majBrut: (total.majNuit+total.majDimanche+total.majFerie+total.majHS).toFixed(2), majDetails: { nuit: total.majNuit, dimanche: total.majDimanche, ferie: total.majFerie, hs: total.majHS } };
         sessions.unshift(session);
         if(sessions.length>50) sessions.pop();
-        localStorage.setItem('workSessions',JSON.stringify(sessions));
+        saveSessions();
         renderHistory();
         workSeconds = 0; lunchSeconds = 0; shortPauseSeconds = 0;
         workRunning = false; lunchRunning = false; shortPauseRunning = false;
@@ -2056,6 +2248,7 @@
                         <div class="title-container"><div class="main-title logo-mark">${LOGO_HTML}</div></div>
                         <div class="right-group"><span class="mono-icon" style="font-size:0.95rem;" title="Verrouillage de l'écran">🔒</span><label class="switch"><input type="checkbox" id="lockSwitchInput"><span class="slider"></span></label></div>
                     </div>
+                    <div class="profile-bar" id="profileBar"></div>
                     <div class="card hero-card">
                         <div class="date-label" id="dateLabel"></div>
                         <div class="hero-timer" id="workTime">00:00:00</div>
@@ -2094,17 +2287,27 @@
                     <div class="menu-section"><div class="menu-section-title">Suivi</div><div class="menu-item" id="menuStats"><span class="mono-icon">📊</span> Statistiques</div><div class="menu-item" id="menuWeekly"><span class="mono-icon">📈</span> Cumul hebdomadaire</div><div class="menu-item" id="menuPayCompare"><span class="mono-icon">⚖️</span> Comparateur de paie</div><div class="menu-item" id="menuLeave"><span class="mono-icon">🌴</span> Congés / RTT</div><div class="menu-item" id="menuManualEntry"><span class="mono-icon">✏️</span> Saisie manuelle</div></div>
                     <div class="menu-section"><div class="menu-section-title">Historique</div><div class="history-list" id="historyList"><div style="color:var(--text-secondary);text-align:center;">Aucune session</div></div></div>
                     <div class="menu-section"><div class="menu-section-title">Données</div><div class="menu-item" id="menuCloud"><span class="mono-icon">☁️</span> Cloud (Firebase)</div><div class="menu-item" id="menuExportPDF"><span class="mono-icon">🖨️</span> Bilan mensuel PDF</div><div class="menu-item" id="menuExportCSV"><span class="mono-icon">📄</span> Exporter CSV</div><div class="menu-item" id="menuExport"><span class="mono-icon">📦</span> Exporter JSON</div><div class="menu-item" id="menuImportJSON"><span class="mono-icon">📂</span> Importer JSON</div><div class="menu-item" id="menuCopyDay"><span class="mono-icon">📋</span> Copier détail du jour</div></div>
-                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div><div class="menu-item" id="menuLogout"><span class="mono-icon">🚪</span> Se déconnecter</div></div>
+                    <div class="menu-section"><div class="menu-section-title">Application</div><div class="menu-item" id="menuProfiles"><span class="mono-icon">🗂️</span> Profils</div><div class="menu-item" id="menuProfile"><span class="mono-icon">👤</span> Mon profil</div><div class="menu-item" id="menuSettings"><span class="mono-icon">⚙️</span> Réglages</div><div class="menu-item" id="menuHelp"><span class="mono-icon">❓</span> Aide</div><div class="menu-item" id="menuAbout"><span class="mono-icon">ℹ️</span> À propos</div><div class="menu-item" id="menuLogout"><span class="mono-icon">🚪</span> Se déconnecter</div></div>
                 </div>
             </div>
         `;
         const dateLabel = document.getElementById('dateLabel');
         if (dateLabel) { const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }); dateLabel.innerText = d.charAt(0).toUpperCase() + d.slice(1); }
         attachMainEvents();
+        renderProfileBar();
         startTimer();
         updateAllDisplays();
         checkDateChange();
         updateButtonsUI();
+    }
+    function renderProfileBar() {
+        const bar = document.getElementById('profileBar');
+        if (!bar) return;
+        const p = getActiveProfile();
+        if (!p) { bar.innerHTML = ''; return; }
+        bar.innerHTML = `<div class="profile-chip" id="profileChip"><span class="profile-dot" style="background:${p.color || '#0A84FF'};"></span><span>${escapeHtml(p.name)}</span><span class="chev">▾</span></div>`;
+        const chip = document.getElementById('profileChip');
+        if (chip) chip.onclick = () => { if (!locked) showProfilesPage(); };
     }
     function attachMainEvents() {
         document.getElementById('hamburgerBtn').onclick = () => { if (!locked) document.getElementById('drawer').classList.add('open'); document.getElementById('overlay').classList.add('active'); };
@@ -2133,6 +2336,7 @@
                 }, "", 'password', true);
             }
         });
+        document.getElementById('menuProfiles').onclick = () => { closeDrawer(); showProfilesPage(); };
         document.getElementById('menuProfile').onclick = () => { closeDrawer(); showConfigPage(false); };
         document.getElementById('menuStats').onclick = () => { closeDrawer(); showStats(); };
         document.getElementById('menuPayCompare').onclick = () => { closeDrawer(); showPayComparePage(); };
