@@ -203,6 +203,14 @@
         body.dark { color-scheme: dark; }
         select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A93A3' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px; }
         input[type="month"], input[type="date"], input[type="time"] { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-family: inherit; font-size: 1rem; }
+        .cs-wrap { position: relative; flex: 1; }
+        .cs-btn { width: 100%; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; cursor: pointer; }
+        .cs-btn.cs-disabled { opacity: 0.45; cursor: not-allowed; }
+        .cs-btn .cs-arrow { color: var(--text-secondary); font-size: 0.7rem; flex-shrink: 0; }
+        .cs-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1050; background: var(--card-solid); border: 1px solid var(--card-border); border-radius: 14px; box-shadow: var(--shadow-hover); overflow: hidden auto; max-height: 260px; }
+        .cs-item { padding: 12px 14px; cursor: pointer; color: var(--text-primary); font-size: 0.95rem; border-bottom: 1px solid var(--border-light); }
+        .cs-item:last-child { border-bottom: none; }
+        .cs-item.sel, .cs-item:active { background: var(--btn-secondary-bg); }
         .switch { position: relative; display: inline-block; width: 52px; height: 28px; vertical-align: middle; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.2s; border-radius: 28px; }
@@ -748,6 +756,62 @@
             };
         });
     }
+    // Listes déroulantes maison (remplacent l'apparence native du système, tout en pilotant un <select> caché)
+    let csGlobalBound = false;
+    function csCloseAll() { document.querySelectorAll('.cs-list').forEach(l => l.style.display = 'none'); document.querySelectorAll('.cs-btn.open').forEach(b => b.classList.remove('open')); }
+    function csSyncDisabled(sel) { if (sel && sel._csBtn) sel._csBtn.classList.toggle('cs-disabled', !!sel.disabled); }
+    function enhanceSelects(rootEl) {
+        (rootEl || document).querySelectorAll('select:not([data-enhanced])').forEach(sel => {
+            sel.setAttribute('data-enhanced', '1');
+            sel.style.display = 'none';
+            const wrap = document.createElement('div');
+            wrap.className = 'cs-wrap';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'cs-btn' + (sel.disabled ? ' cs-disabled' : '');
+            const labelOf = () => { const o = sel.options[sel.selectedIndex]; return o ? o.textContent : ''; };
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'cs-label';
+            labelSpan.textContent = labelOf();
+            const arrow = document.createElement('span');
+            arrow.className = 'cs-arrow';
+            arrow.textContent = '▾';
+            btn.appendChild(labelSpan);
+            btn.appendChild(arrow);
+            const list = document.createElement('div');
+            list.className = 'cs-list';
+            list.style.display = 'none';
+            Array.from(sel.options).forEach((o, idx) => {
+                const item = document.createElement('div');
+                item.className = 'cs-item' + (idx === sel.selectedIndex ? ' sel' : '');
+                item.textContent = o.textContent;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    sel.selectedIndex = idx;
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    csCloseAll();
+                };
+                list.appendChild(item);
+            });
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                if (sel.disabled) return;
+                const wasOpen = list.style.display !== 'none';
+                csCloseAll();
+                if (!wasOpen) { list.style.display = 'block'; btn.classList.add('open'); }
+            };
+            // Sync visuel si la valeur du select change (utilisateur ou programmatique via dispatch)
+            sel.addEventListener('change', () => {
+                labelSpan.textContent = labelOf();
+                list.querySelectorAll('.cs-item').forEach((x, i) => x.classList.toggle('sel', i === sel.selectedIndex));
+            });
+            sel._csBtn = btn;
+            sel.parentNode.insertBefore(wrap, sel.nextSibling);
+            wrap.appendChild(btn);
+            wrap.appendChild(list);
+        });
+        if (!csGlobalBound) { csGlobalBound = true; document.addEventListener('click', csCloseAll); }
+    }
     function generateHolidays(year) {
         const paques = (y) => {
             const a = y % 19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4;
@@ -1015,6 +1079,7 @@
                 `;
                 primesContainer.appendChild(div);
             });
+            enhanceSelects(primesContainer);
         }
         renderPrimes();
         primesContainer.addEventListener('change', (e) => {
@@ -1058,7 +1123,7 @@
         const thirteenthMonthDiv = document.getElementById('thirteenthMonthDiv');
         thirteenthCheck.addEventListener('change', () => thirteenthDiv.style.display = thirteenthCheck.checked ? 'block' : 'none');
         const thirteenthMonthSel = document.getElementById('wThirteenthMonth');
-        function syncThirteenthMonth() { const monthly = thirteenthType.value === 'monthly'; if (thirteenthMonthSel) { thirteenthMonthSel.disabled = monthly; thirteenthMonthSel.style.opacity = monthly ? '0.45' : '1'; } }
+        function syncThirteenthMonth() { const monthly = thirteenthType.value === 'monthly'; if (thirteenthMonthSel) { thirteenthMonthSel.disabled = monthly; thirteenthMonthSel.style.opacity = monthly ? '0.45' : '1'; csSyncDisabled(thirteenthMonthSel); } }
         thirteenthType.addEventListener('change', syncThirteenthMonth);
         syncThirteenthMonth();
         // Calcul auto brut/net (corrigé)
@@ -1275,6 +1340,7 @@
         const cancelNewBtn = document.getElementById('cancelNewEmployerBtn');
         if (cancelNewBtn) cancelNewBtn.onclick = () => cancelNewEmployerConfig();
         wireColorGrids();
+        enhanceSelects();
     }
     // ---------- ASSISTANT DE CONFIGURATION (création guidée par étapes) ----------
     function showSetupWizard(isWelcome = true) {
@@ -1419,7 +1485,7 @@
         if (customCoeffInput) customCoeffInput.addEventListener('input', () => { if (autoNet) netFromBrut(); });
         const wizThirteenthType = document.getElementById('wThirteenthType');
         const wizThirteenthMonth = document.getElementById('wThirteenthMonth');
-        function wizSyncThirteenth() { if (wizThirteenthType && wizThirteenthMonth) { const monthly = wizThirteenthType.value === 'monthly'; wizThirteenthMonth.disabled = monthly; wizThirteenthMonth.style.opacity = monthly ? '0.45' : '1'; } }
+        function wizSyncThirteenth() { if (wizThirteenthType && wizThirteenthMonth) { const monthly = wizThirteenthType.value === 'monthly'; wizThirteenthMonth.disabled = monthly; wizThirteenthMonth.style.opacity = monthly ? '0.45' : '1'; csSyncDisabled(wizThirteenthMonth); } }
         if (wizThirteenthType) wizThirteenthType.addEventListener('change', wizSyncThirteenth);
         wizSyncThirteenth();
         // Conventions collectives
@@ -1561,6 +1627,7 @@
             document.getElementById('wizDoneOpen').onclick = () => { pendingPrevProfileId = null; loadMainApp(); };
             document.getElementById('wizDoneAdd').onclick = () => { startNewEmployerConfig(); };
         }
+        enhanceSelects();
         renderStep();
     }
     // ---------- PAGE RÉGLAGES ----------
@@ -1658,6 +1725,7 @@
         document.getElementById('backToAppBtn').addEventListener('click', () => loadMainApp());
         wireColorGrids();
         wirePwToggles();
+        enhanceSelects();
     }
     // ---------- PAGE CUMUL HEBDOMADAIRE ----------
     function showWeeklyPage() {
@@ -1914,6 +1982,7 @@
             </div>
         `;
         document.getElementById('backLeaveBtn').onclick = () => loadMainApp();
+        enhanceSelects();
         document.getElementById('leaveDate').value = toLocalISO(new Date());
         function refreshLeaveUI() {
             document.getElementById('cpBalanceVal').innerText = cpBalance().toFixed(1).replace('.', ',');
@@ -2996,6 +3065,7 @@
             <div class="time-input-group"><label>Nouveau temps travaillé (hh:mm:ss) :</label><input type="text" id="manualWorkTime" placeholder="00:00:00"></div>
             <button class="btn btn-primary" id="setWorkTimeBtn">Appliquer</button></div>`;
             document.getElementById('backManualBtn').onclick = () => loadMainApp();
+            enhanceSelects();
             document.getElementById('addManualBtn').onclick = () => {
                 if(locked){ showInfoModal("Déverrouillez l'écran"); return; }
                 const type = document.getElementById('manualType').value;
