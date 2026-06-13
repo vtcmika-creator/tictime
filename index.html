@@ -215,6 +215,11 @@
         .profile-chip:active { transform: scale(0.97); }
         .profile-chip .chev { color: var(--text-secondary); font-size: 0.7rem; }
         .profile-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .wizard-steps { display: flex; align-items: center; justify-content: center; gap: 0; margin: 8px 0 2px; }
+        .wizard-dot { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; background: var(--btn-secondary-bg); color: var(--text-secondary); flex-shrink: 0; transition: var(--transition); }
+        .wizard-dot.active { background: var(--accent); color: #fff; }
+        .wizard-dot.done { background: var(--salary-net); color: #fff; }
+        .wizard-link { width: 28px; height: 2px; background: var(--border-light); }
         /* Styles pour l'aide en accordéons */
         .help-section summary {
             cursor: pointer;
@@ -272,8 +277,8 @@
         overtimeThreshold2: 8, overtimeRate2: 0.50,
         weeklyOvertimeEnabled: false,
         weeklyOvertimeThreshold: 35,
-        nightStart: 21, nightEnd: 6, nightRate: 1.0,
-        sundayEnabled: true, sundayRate: 1.0,
+        nightStart: 21, nightEnd: 6, nightRate: 0.20,
+        sundayEnabled: true, sundayRate: 0.50,
         holidayEnabled: true, holidayRate: 1.0,
         roundingRule: "none",
         statutDetaille: "Employé", customNetCoeff: null,
@@ -404,7 +409,7 @@
         persistProfiles();
         localStorage.removeItem('autoSaveState');
         applyActiveProfileToGlobals();
-        showConfigPage(false, true);
+        showSetupWizard(false);
     }
     // Annulation de la création : supprime le profil vierge et revient au précédent
     function cancelNewEmployerConfig() {
@@ -639,6 +644,20 @@
         return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
     }
     function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    // Helpers conventions collectives (partagés par l'assistant)
+    function ccnPopulateDatalist(dlId) {
+        const dl = document.getElementById(dlId);
+        if (!conventionsDB || !dl || dl.options.length > 0) return;
+        conventionsDB.conventions.forEach(c => { const o = document.createElement('option'); o.value = `${c.idcc} — ${c.name}`; dl.appendChild(o); });
+    }
+    function ccnFind(q) {
+        if (!conventionsDB) return null;
+        q = (q || '').trim().toLowerCase();
+        if (!q) return null;
+        const num = q.match(/^\d{2,5}/);
+        if (num) { const byId = conventionsDB.conventions.find(c => String(c.idcc) === num[0]); if (byId) return byId; }
+        return conventionsDB.conventions.find(c => c.name.toLowerCase().includes(q)) || null;
+    }
     function generateHolidays(year) {
         const paques = (y) => {
             const a = y % 19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4;
@@ -1168,6 +1187,177 @@
         const cancelNewBtn = document.getElementById('cancelNewEmployerBtn');
         if (cancelNewBtn) cancelNewBtn.onclick = () => cancelNewEmployerConfig();
     }
+    // ---------- ASSISTANT DE CONFIGURATION (création guidée par étapes) ----------
+    function showSetupWizard(isWelcome = true) {
+        const isNew = !isWelcome;
+        const root = document.getElementById('appRoot');
+        const ap = getActiveProfile();
+        const wr = workRules;
+        const colorVal = (ap && ap.color) || (userPrefs && userPrefs.accentColor) || '#0A84FF';
+        const steps = [
+            { t: "Ton employeur", s: "Donne-lui un nom et une couleur repère." },
+            { t: "Ta rémunération", s: "Ces infos sont sur ta fiche de paie." },
+            { t: "Tes majorations", s: "Choisis ta convention, ou vérifie les valeurs proposées." }
+        ];
+        const total = steps.length;
+        root.innerHTML = `
+            <div class="app" style="justify-content:flex-start;">
+                <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:flex-start;">
+                    <div class="card" style="width:100%;">
+                        <div style="text-align:center; margin-bottom:4px;"><div class="main-title logo-mark" style="font-size:1.5rem;">${LOGO_HTML}</div></div>
+                        <div class="wizard-steps"><span class="wizard-dot" data-n="1">1</span><span class="wizard-link"></span><span class="wizard-dot" data-n="2">2</span><span class="wizard-link"></span><span class="wizard-dot" data-n="3">3</span></div>
+                        <div class="card-title" id="wizardStepTitle" style="font-size:1.2rem; text-align:center; margin:8px 0 2px; color:var(--text-primary);"></div>
+                        <div id="wizardStepSub" style="text-align:center; font-size:0.8rem; color:var(--text-secondary); margin-bottom:18px;"></div>
+                        <div class="wizard-panel" data-step="1">
+                            <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:16px; text-align:center;">Ces réglages déterminent la précision de ton salaire calculé. 3 étapes rapides, modifiables à tout moment.</p>
+                            <div class="welcome-group"><label>Nom de l'employeur * <span class="help-icon" data-help="Souvent le nom de la société. Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="" placeholder="ex : nom de votre employeur"></div>
+                            <div class="settings-group"><label>Couleur (repère visuel)</label><input type="color" id="wProfileColor" value="${colorVal}" style="height:44px;"></div>
+                        </div>
+                        <div class="wizard-panel" data-step="2" style="display:none;">
+                            <div class="welcome-group"><label>Taux horaire brut (€) * <span class="help-icon" data-help="Fiche de paie : ligne « Salaire de base » ou taux horaire indiqué.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${wr.tauxBrut}"></div>
+                            <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement depuis le brut. Modifiable si tu connais ton net.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${wr.tauxNet}"></div>
+                            <div class="welcome-group"><label>Statut</label><select id="wStatut" class="time-input-group select"><option value="Non-cadre" ${wr.statut === "Non-cadre" ? "selected" : ""}>Non-cadre</option><option value="Cadre" ${wr.statut === "Cadre" ? "selected" : ""}>Cadre</option></select></div>
+                            <div class="welcome-group"><label>Heures hebdomadaires contractuelles <span class="help-icon" data-help="Ex : 35. Sert au calcul du solde d'heures (excédent/déficit) sur l'accueil.">ℹ️</span></label><input type="text" id="wWeeklyContractHours" class="input-number" value="${wr.weeklyContractHours || 35}"></div>
+                        </div>
+                        <div class="wizard-panel" data-step="3" style="display:none;">
+                            <div class="welcome-group" id="ccnBlock" style="background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
+                                <label>Ta convention collective <span class="help-icon" data-help="Préremplit les majorations selon ta branche. Valeurs indicatives des minima : ton accord d'entreprise ou ton contrat peut prévoir mieux.">ℹ️</span></label>
+                                <input list="ccnList" id="wConventionInput" class="input-number" placeholder="Nom ou n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
+                                <datalist id="ccnList"></datalist>
+                                <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs de ma convention</button>
+                                <div class="modal-forgot" id="ccnUnknownLink" style="text-align:center; margin-top:10px;">Je ne connais pas ma convention</div>
+                            </div>
+                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:14px 0 6px;">Valeurs ci-dessous pré-remplies <strong>à vérifier</strong> sur ta fiche de paie ou ta convention :</p>
+                            <div class="welcome-group"><label>Plage de nuit (de – à)</label><div style="display:flex; gap:8px; align-items:center;"><input type="text" id="wNightStart" class="input-number" value="${wr.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${wr.nightEnd}" style="flex:1;"> h</div></div>
+                            <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${Math.round(wr.nightRate * 100)}"></div>
+                            <div class="inline-switch"><span>Dimanche majoré</span><label class="switch"><input type="checkbox" id="wSundayEnabled" ${wr.sundayEnabled ? "checked" : ""}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Majoration dimanche (%)</label><input type="text" id="wSundayRate" class="input-number" value="${Math.round(wr.sundayRate * 100)}"></div>
+                            <div class="inline-switch"><span>Jours fériés majorés</span><label class="switch"><input type="checkbox" id="wHolidayEnabled" ${wr.holidayEnabled ? "checked" : ""}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Majoration fériés (%)</label><input type="text" id="wHolidayRate" class="input-number" value="${Math.round(wr.holidayRate * 100)}"></div>
+                            <div class="welcome-group"><label>Heures sup. au-delà de (h/jour)</label><input type="text" id="wOvertimeThreshold" class="input-number" value="${wr.overtimeThreshold}"></div>
+                            <div class="welcome-group"><label>Majoration heures sup. (%)</label><input type="text" id="wOvertimeRate" class="input-number" value="${Math.round(wr.overtimeRate * 100)}"></div>
+                            <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${wr.roundingRule === 'none' ? 'selected' : ''}>Aucun</option><option value="minute" ${wr.roundingRule === 'minute' ? 'selected' : ''}>Minute</option><option value="5min" ${wr.roundingRule === '5min' ? 'selected' : ''}>5 minutes</option><option value="10min" ${wr.roundingRule === '10min' ? 'selected' : ''}>10 minutes</option><option value="15min" ${wr.roundingRule === '15min' ? 'selected' : ''}>15 minutes</option></select></div>
+                            <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:6px;">Primes, ancienneté, 13e mois… s'ajoutent ensuite dans « Mon employeur ».</p>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:22px;">
+                            <button class="btn btn-secondary" id="wizPrev" style="flex:1;">Précédent</button>
+                            <button class="btn btn-primary" id="wizNext" style="flex:1;">Suivant</button>
+                        </div>
+                        ${isNew ? '<button class="btn btn-secondary" id="wizCancel" style="display:block; width:100%; margin-top:10px;">Annuler</button>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        let cur = 1;
+        function renderStep() {
+            document.querySelectorAll('.wizard-panel').forEach(p => { p.style.display = (parseInt(p.dataset.step) === cur) ? 'block' : 'none'; });
+            document.getElementById('wizardStepTitle').innerText = `Étape ${cur} sur ${total} — ${steps[cur - 1].t}`;
+            document.getElementById('wizardStepSub').innerText = steps[cur - 1].s;
+            document.querySelectorAll('.wizard-dot').forEach(d => { const n = parseInt(d.dataset.n); d.classList.toggle('active', n === cur); d.classList.toggle('done', n < cur); });
+            document.getElementById('wizPrev').style.visibility = (cur === 1) ? 'hidden' : 'visible';
+            document.getElementById('wizNext').innerText = (cur === total) ? (isWelcome ? "Ouvrir l'application" : "Enregistrer") : "Suivant";
+        }
+        function validateStep() {
+            if (cur === 1) { if (!document.getElementById('wProfileName').value.trim()) { showInfoModal("Donne un nom à cet employeur."); return false; } }
+            if (cur === 2) {
+                const b = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
+                const nt = parseFloat(document.getElementById('wTauxNet').value.replace(',', '.'));
+                if (isNaN(b) || b <= 0) { showInfoModal("Taux horaire brut invalide."); return false; }
+                if (isNaN(nt) || nt <= 0) { showInfoModal("Taux horaire net invalide."); return false; }
+            }
+            return true;
+        }
+        document.getElementById('wizPrev').onclick = () => { if (cur > 1) { cur--; renderStep(); window.scrollTo(0, 0); } };
+        document.getElementById('wizNext').onclick = () => { if (!validateStep()) return; if (cur < total) { cur++; renderStep(); window.scrollTo(0, 0); } else { finishWizard(); } };
+        const wizCancel = document.getElementById('wizCancel');
+        if (wizCancel) wizCancel.onclick = () => cancelNewEmployerConfig();
+        // Calcul automatique brut -> net
+        const tauxBrutInput = document.getElementById('wTauxBrut');
+        const tauxNetInput = document.getElementById('wTauxNet');
+        const statutSelect = document.getElementById('wStatut');
+        let autoNet = true;
+        function netFromBrut() { let brut = parseFloat(tauxBrutInput.value.replace(',', '.')); if (isNaN(brut)) brut = 0; const coeff = statutSelect.value === 'Cadre' ? 0.75 : 0.78; tauxNetInput.value = (brut * coeff).toFixed(2); }
+        tauxBrutInput.addEventListener('input', () => { if (autoNet) netFromBrut(); });
+        tauxNetInput.addEventListener('input', () => { autoNet = false; const net = parseFloat(tauxNetInput.value.replace(',', '.')); const coeff = statutSelect.value === 'Cadre' ? 0.75 : 0.78; tauxBrutInput.value = isNaN(net) ? '' : (net / coeff).toFixed(2); autoNet = true; });
+        statutSelect.addEventListener('change', () => { if (autoNet) netFromBrut(); });
+        // Conventions collectives
+        ccnPopulateDatalist('ccnList');
+        if (!conventionsDB) fetch('conventions.json').then(r => r.json()).then(db => { conventionsDB = db; ccnPopulateDatalist('ccnList'); }).catch(() => {});
+        document.getElementById('ccnUnknownLink').onclick = () => {
+            showInfoModal("Ta convention collective figure sur ta fiche de paie (souvent en haut, avec un n° IDCC à 4 chiffres) et sur ton contrat de travail. En cas de doute, demande à ton service RH ou à ton employeur — tu peux aussi la chercher par le nom de ta société sur code.travail.gouv.fr. En attendant, vérifie et ajuste les valeurs proposées ci-dessous.");
+        };
+        document.getElementById('applyCcnBtn').onclick = () => {
+            const inp = document.getElementById('wConventionInput');
+            if (!inp.value.trim()) { showInfoModal("Saisis d'abord ta convention (n° IDCC ou nom), puis choisis dans les suggestions."); return; }
+            const conv = ccnFind(inp.value);
+            if (!conv) { showInfoModal(`Convention non trouvée dans notre base (${conventionsDB ? conventionsDB.conventions.length : 0} référencées). Tu peux remplir les valeurs manuellement ci-dessous — elles figurent dans ta convention sur legifrance.gouv.fr. La base s'enrichit régulièrement.`); return; }
+            const f = conv.fields || {};
+            const lines = [];
+            if (f.nightStart !== undefined && f.nightEnd !== undefined) lines.push(`Plage de nuit : ${f.nightStart} h → ${f.nightEnd} h`);
+            if (f.nightRate !== undefined) lines.push(`Nuit : +${Math.round(f.nightRate * 100)} %`);
+            if (f.sundayRate !== undefined) lines.push(`Dimanche : +${Math.round(f.sundayRate * 100)} %`);
+            if (f.holidayRate !== undefined) lines.push(`Férié : +${Math.round(f.holidayRate * 100)} %`);
+            if (f.overtimeThreshold !== undefined) lines.push(`Heures sup : +${Math.round((f.overtimeRate !== undefined ? f.overtimeRate : 0.25) * 100)} % au-delà de ${f.overtimeThreshold} h/jour`);
+            const verif = conv.lastVerified ? `Valeurs vérifiées : ${conv.lastVerified}.` : "⚠ Valeurs indicatives à vérifier.";
+            customConfirm(`${conv.name} (IDCC ${conv.idcc})\n\n${lines.join('\n')}\n\n${verif} Minima de branche : ton accord d'entreprise peut prévoir mieux. Appliquer ces valeurs ?`, (ok) => {
+                if (!ok) return;
+                const sv = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+                sv('wNightStart', f.nightStart);
+                sv('wNightEnd', f.nightEnd);
+                if (f.nightRate !== undefined) sv('wNightRate', Math.round(f.nightRate * 100));
+                if (f.sundayEnabled !== undefined) document.getElementById('wSundayEnabled').checked = f.sundayEnabled;
+                if (f.sundayRate !== undefined) sv('wSundayRate', Math.round(f.sundayRate * 100));
+                if (f.holidayEnabled !== undefined) document.getElementById('wHolidayEnabled').checked = f.holidayEnabled;
+                if (f.holidayRate !== undefined) sv('wHolidayRate', Math.round(f.holidayRate * 100));
+                if (f.overtimeThreshold !== undefined) sv('wOvertimeThreshold', f.overtimeThreshold);
+                if (f.overtimeRate !== undefined) sv('wOvertimeRate', Math.round(f.overtimeRate * 100));
+                showInfoModal("Valeurs de la convention appliquées. Vérifie-les, puis valide.");
+            });
+        };
+        function finishWizard() {
+            const profName = document.getElementById('wProfileName').value.trim();
+            const brut = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
+            const net = parseFloat(document.getElementById('wTauxNet').value.replace(',', '.'));
+            if (!profName) { cur = 1; renderStep(); showInfoModal("Donne un nom à cet employeur."); return; }
+            if (isNaN(brut) || brut <= 0) { cur = 2; renderStep(); showInfoModal("Taux horaire brut invalide."); return; }
+            if (isNaN(net) || net <= 0) { cur = 2; renderStep(); showInfoModal("Taux horaire net invalide."); return; }
+            workRules.tauxBrut = brut; workRules.tauxNet = net;
+            workRules.statut = document.getElementById('wStatut').value;
+            workRules.weeklyContractHours = parseFloat(document.getElementById('wWeeklyContractHours').value.replace(',', '.')) || 35;
+            const ns = parseInt(document.getElementById('wNightStart').value); if (!isNaN(ns)) workRules.nightStart = ns;
+            const ne = parseInt(document.getElementById('wNightEnd').value); if (!isNaN(ne)) workRules.nightEnd = ne;
+            workRules.nightRate = (parseFloat(document.getElementById('wNightRate').value) || 0) / 100;
+            workRules.sundayEnabled = document.getElementById('wSundayEnabled').checked;
+            workRules.sundayRate = (parseFloat(document.getElementById('wSundayRate').value) || 0) / 100;
+            workRules.holidayEnabled = document.getElementById('wHolidayEnabled').checked;
+            workRules.holidayRate = (parseFloat(document.getElementById('wHolidayRate').value) || 0) / 100;
+            workRules.overtimeThreshold = parseFloat(document.getElementById('wOvertimeThreshold').value.replace(',', '.')) || 0;
+            workRules.overtimeRate = (parseFloat(document.getElementById('wOvertimeRate').value) || 0) / 100;
+            workRules.roundingRule = document.getElementById('wRoundingRule').value;
+            workRules.holidaysList = generateHolidays(new Date().getFullYear());
+            saveWorkRules();
+            if (isWelcome) {
+                loadProfiles();
+                userPrefs.accentColor = "#0A84FF";
+                userPrefs.autoDarkMode = true;
+                userPrefs.compactMode = false;
+                savePrefs();
+                applyTheme();
+            }
+            const p = getActiveProfile();
+            if (p) {
+                p.name = profName;
+                const c = document.getElementById('wProfileColor'); if (c) p.color = c.value;
+                p.rules = JSON.parse(JSON.stringify(workRules));
+                persistProfiles();
+            }
+            customConfirm("Employeur enregistré. Veux-tu ajouter un autre employeur ?", (ok) => {
+                if (ok) { startNewEmployerConfig(); }
+                else { pendingPrevProfileId = null; loadMainApp(); }
+            });
+        }
+        renderStep();
+    }
     // ---------- PAGE RÉGLAGES ----------
     function showSettingsPage() {
         const root = document.getElementById('appRoot');
@@ -1416,7 +1606,7 @@
     }
     function proceedAfterAuth() {
         const hasRules = localStorage.getItem('workRules') !== null;
-        if (!hasRules) showConfigPage(true); else loadMainApp();
+        if (!hasRules) showSetupWizard(true); else loadMainApp();
     }
     function showAuthPage(mode) {
         const isSignup = mode === 'signup';
