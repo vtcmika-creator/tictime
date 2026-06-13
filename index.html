@@ -199,6 +199,10 @@
         canvas { max-height: 220px; width: 100%; }
         .time-input-group { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
         .time-input-group input, select { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-size: 0.9rem; }
+        body { color-scheme: light; }
+        body.dark { color-scheme: dark; }
+        select { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A93A3' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px; }
+        input[type="month"], input[type="date"], input[type="time"] { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border-light); background: var(--card-solid); color: var(--text-primary); font-family: inherit; font-size: 1rem; }
         .switch { position: relative; display: inline-block; width: 52px; height: 28px; vertical-align: middle; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: 0.2s; border-radius: 28px; }
@@ -933,6 +937,7 @@
                                 <label>Convention collective (optionnel) <span class="help-icon" data-help="Pré-remplit majorations, plage de nuit et heures sup selon votre convention de branche. Valeurs indicatives : vos accords d'entreprise ou votre contrat peuvent prévoir mieux.">ℹ️</span></label>
                                 <input list="ccnList" id="wConventionInput" class="input-number" value="${escapeHtml(workRules.ccnLabel || '')}" placeholder="Tapez un nom ou un n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
                                 <datalist id="ccnList"></datalist>
+                                <div id="ccnCurrent" style="font-size:0.75rem; color:var(--salary-net); margin-top:8px; font-weight:500;">${workRules.ccnLabel ? 'Convention sélectionnée : ' + escapeHtml(workRules.ccnLabel) : ''}</div>
                                 <p style="font-size:0.72rem; color:var(--text-secondary); margin:8px 0 0;">L'intitulé et le n° IDCC de votre convention figurent sur votre <strong>fiche de paie</strong> et sur votre contrat de travail.</p>
                                 <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs indicatives</button>
                             </div>
@@ -953,10 +958,10 @@
                             <div class="welcome-group"><label>Majoration dimanche (%)</label><input type="text" id="wSundayRate" class="input-number" value="${workRules.sundayRate*100}"></div>
                             <div class="inline-switch"><span>Jours fériés travaillés</span><label class="switch"><input type="checkbox" id="wHolidayEnabled" ${workRules.holidayEnabled?"checked":""}><span class="slider"></span></label></div>
                             <div class="welcome-group"><label>Majoration fériés (%)</label><input type="text" id="wHolidayRate" class="input-number" value="${workRules.holidayRate*100}"></div>
-                            <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${workRules.roundingRule==='none'?"selected":""}>Aucun</option><option value="minute" ${workRules.roundingRule==='minute'?"selected":""}>Minute</option><option value="5min" ${workRules.roundingRule==='5min'?"selected":""}>5 minutes</option><option value="10min" ${workRules.roundingRule==='10min'?"selected":""}>10 minutes</option><option value="15min" ${workRules.roundingRule==='15min'?"selected":""}>15 minutes</option></select></div>
+                            <div class="welcome-group"><label>Règle d'arrondi <span class="help-icon" data-help="Arrondit le temps travaillé avant le calcul du salaire. Ex. : avec « 15 minutes », 7 h 52 devient 8 h 00 et 7 h 07 devient 7 h 00. « Aucun » = à la seconde près. Le temps réel reste affiché en petit sous le compteur.">ℹ️</span></label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${workRules.roundingRule==='none'?"selected":""}>Aucun</option><option value="minute" ${workRules.roundingRule==='minute'?"selected":""}>Minute</option><option value="5min" ${workRules.roundingRule==='5min'?"selected":""}>5 minutes</option><option value="10min" ${workRules.roundingRule==='10min'?"selected":""}>10 minutes</option><option value="15min" ${workRules.roundingRule==='15min'?"selected":""}>15 minutes</option></select></div>
                         </div>
-                        <details class="help-section" id="preciseModeFields" style="margin-top:8px;" ${(workRules.weeklyOvertimeEnabled || workRules.ancienneteEnabled || (workRules.thirteenthMonth && workRules.thirteenthMonth.enabled) || workRules.customNetCoeff != null || (workRules.primes || []).some(p => p.enabled)) ? 'open' : ''}>
-                            <summary>Réglages avancés</summary>
+                        <div id="preciseModeFields" style="margin-top:8px;">
+                            <hr><div class="card-title" style="color:var(--accent); font-size:0.95rem; margin-bottom:6px;">Réglages avancés</div>
                             <div class="card-title" style="margin-top:8px;">Statut et coefficient</div>
                             <div class="welcome-group"><label>Statut détaillé</label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${workRules.statutDetaille==="Ouvrier"?"selected":""}>Ouvrier</option><option value="Employé" ${workRules.statutDetaille==="Employé"?"selected":""}>Employé</option><option value="ETAM" ${workRules.statutDetaille==="ETAM"?"selected":""}>ETAM</option><option value="Cadre" ${workRules.statutDetaille==="Cadre"?"selected":""}>Cadre</option></select></div>
                             <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel)</label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex: 0.78" value="${workRules.customNetCoeff||''}"></div>
@@ -980,10 +985,10 @@
                             <div id="thirteenthFields" style="display:${workRules.thirteenthMonth.enabled?'block':'none'}">
                                 <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${workRules.thirteenthMonth.type==="once"?"selected":""}>Versé en une fois</option><option value="monthly" ${workRules.thirteenthMonth.type==="monthly"?"selected":""}>Mensualisé</option></select></div>
                                 <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" placeholder="Montant" value="${workRules.thirteenthMonth.amount !== 0 ? workRules.thirteenthMonth.amount : ''}"></div>
-                                <div id="thirteenthMonthDiv" style="display:${workRules.thirteenthMonth.type==='once'?'block':'none'}"><div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11" ${workRules.thirteenthMonth.month===11?"selected":""}>Décembre</option></select></div></div>
+                                <div id="thirteenthMonthDiv"><div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11" ${workRules.thirteenthMonth.month===11?"selected":""}>Décembre</option></select></div></div>
                             </div>
                             <hr><div class="welcome-group"><label>Heures mensuelles contractuelles (pour primes journalières) <span class="help-icon" data-help="Nombre d'heures travaillées par mois (ex: 151,67).">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${workRules.monthlyContractHours}"></div>
-                        </details>
+                        </div>
                         <hr>
                         <div class="inline-switch" style="margin-top:4px;"><span>Géolocalisation des pointages <span class="help-icon" data-help="Optionnel. Enregistre votre position GPS au démarrage et à l'arrêt de la journée, comme commencement de preuve de présence en cas de litige avec l'employeur. Données stockées sur votre appareil et votre cloud, désactivable à tout moment.">ℹ️</span></span><label class="switch"><input type="checkbox" id="wGeoEnabled" ${workRules.geoEnabled?"checked":""}><span class="slider"></span></label></div>
                         <button class="btn btn-primary" id="saveConfigBtn" style="margin-top:24px; display:block; margin-left:auto; margin-right:auto;">${isWelcome ? "Ouvrir l'application" : "Enregistrer"}</button>
@@ -1052,41 +1057,36 @@
         const thirteenthType = document.getElementById('wThirteenthType');
         const thirteenthMonthDiv = document.getElementById('thirteenthMonthDiv');
         thirteenthCheck.addEventListener('change', () => thirteenthDiv.style.display = thirteenthCheck.checked ? 'block' : 'none');
-        thirteenthType.addEventListener('change', () => thirteenthMonthDiv.style.display = thirteenthType.value === 'once' ? 'block' : 'none');
+        const thirteenthMonthSel = document.getElementById('wThirteenthMonth');
+        function syncThirteenthMonth() { const monthly = thirteenthType.value === 'monthly'; if (thirteenthMonthSel) { thirteenthMonthSel.disabled = monthly; thirteenthMonthSel.style.opacity = monthly ? '0.45' : '1'; } }
+        thirteenthType.addEventListener('change', syncThirteenthMonth);
+        syncThirteenthMonth();
         // Calcul auto brut/net (corrigé)
         const tauxBrutInput = document.getElementById('wTauxBrut');
         const tauxNetInput = document.getElementById('wTauxNet');
         const statutSelect = document.getElementById('wStatut');
+        const statutDetailSelect = document.getElementById('wStatutDetaille');
         const customCoeffInput = document.getElementById('wCustomNetCoeff');
+        function baseCoeff() {
+            if (customCoeffInput && customCoeffInput.value) { const c = parseFloat(customCoeffInput.value.replace(',', '.')); if (!isNaN(c)) return c; }
+            const isCadre = (statutSelect && statutSelect.value === 'Cadre') || (statutDetailSelect && statutDetailSelect.value === 'Cadre');
+            return isCadre ? 0.75 : 0.78;
+        }
         function updateNetFromBrut() {
             let brut = parseFloat(tauxBrutInput.value.replace(',', '.'));
             if (isNaN(brut)) brut = 0;
-            // Lire le statut actuel dans le select
-            let statut = statutSelect.value;
-            let coeff = statut === "Cadre" ? 0.75 : 0.78;
-            if (customCoeffInput && customCoeffInput.value) {
-                let c = parseFloat(customCoeffInput.value.replace(',', '.'));
-                if (!isNaN(c)) coeff = c;
-            }
-            let net = brut * coeff;
-            tauxNetInput.value = net.toFixed(2);
+            tauxNetInput.value = (brut * baseCoeff()).toFixed(2);
         }
         let autoNet = true;
         tauxBrutInput.addEventListener('input', () => { if (autoNet) updateNetFromBrut(); });
         tauxNetInput.addEventListener('input', () => {
             autoNet = false;
-            let net = parseFloat(tauxNetInput.value.replace(',', '.'));
-            let statut = statutSelect.value;
-            let coeff = statut === "Cadre" ? 0.75 : 0.78;
-            if (customCoeffInput && customCoeffInput.value) {
-                let c = parseFloat(customCoeffInput.value.replace(',', '.'));
-                if (!isNaN(c)) coeff = c;
-            }
-            let brut = isNaN(net) ? 0 : net / coeff;
-            tauxBrutInput.value = brut.toFixed(2);
+            const net = parseFloat(tauxNetInput.value.replace(',', '.'));
+            tauxBrutInput.value = isNaN(net) ? '' : (net / baseCoeff()).toFixed(2);
             autoNet = true;
         });
         statutSelect.addEventListener('change', () => { if (autoNet) updateNetFromBrut(); });
+        if (statutDetailSelect) statutDetailSelect.addEventListener('change', () => { if (autoNet) updateNetFromBrut(); });
         if (customCoeffInput) customCoeffInput.addEventListener('input', () => { if (autoNet) updateNetFromBrut(); });
         const geoToggle = document.getElementById('wGeoEnabled');
         if (geoToggle) geoToggle.addEventListener('change', () => {
@@ -1174,6 +1174,8 @@
                     const panier = workRules.primes.find(p => p.name === 'Panier');
                     if (panier) { panier.enabled = true; panier.period = 'daily'; panier.amount = fset.panierDaily; renderPrimes(); }
                 }
+                workRules.ccnLabel = ccnInput.value;
+                const _ccnCur = document.getElementById('ccnCurrent'); if (_ccnCur) _ccnCur.innerText = ccnInput.value ? ('Convention sélectionnée : ' + ccnInput.value) : '';
                 showInfoModal("Valeurs appliquées au formulaire. Relisez-les, ajustez si besoin, puis enregistrez.");
             });
         };
@@ -1282,9 +1284,9 @@
         const wr = workRules;
         const colorVal = (ap && ap.color) || PROFILE_COLORS[0];
         const steps = [
-            { t: "Ton employeur", s: "Donne-lui un nom et une couleur repère." },
-            { t: "Ta rémunération", s: "Ces infos sont sur ta fiche de paie." },
-            { t: "Tes majorations", s: "Choisis ta convention, ou vérifie les valeurs proposées." }
+            { t: "Employeur & rémunération", s: "Nom, couleur et taux — sur ta fiche de paie." },
+            { t: "Tes majorations", s: "Choisis ta convention, ou vérifie les valeurs proposées." },
+            { t: "Primes & compléments", s: "Facultatif : primes, ancienneté, 13e mois." }
         ];
         const total = steps.length;
         const moisOptions = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((m, i) => `<option value="${i}" ${(wr.thirteenthMonth && wr.thirteenthMonth.month === i) ? 'selected' : (i === 11 && !(wr.thirteenthMonth && wr.thirteenthMonth.month !== undefined) ? 'selected' : '')}>${m}</option>`).join('');
@@ -1305,23 +1307,24 @@
                         <div class="card-title" id="wizardStepTitle" style="font-size:1.2rem; text-align:center; margin:8px 0 2px; color:var(--text-primary);"></div>
                         <div id="wizardStepSub" style="text-align:center; font-size:0.8rem; color:var(--text-secondary); margin-bottom:18px;"></div>
                         <div class="wizard-panel" data-step="1">
-                            <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:16px; text-align:center;">Ces réglages déterminent la précision de ton salaire calculé. 3 étapes rapides, modifiables à tout moment.</p>
+                            <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:16px; text-align:center;">Ces réglages déterminent la précision de ton salaire calculé. Tu pourras tout modifier à tout moment.</p>
                             <div class="welcome-group"><label>Nom de l'employeur * <span class="help-icon" data-help="Souvent le nom de la société. Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="" placeholder="ex : nom de votre employeur"></div>
-                            <div class="settings-group"><label>Couleur (repère visuel)</label>${colorSwatchHtml('wProfileColor', colorVal)}</div>
-                        </div>
-                        <div class="wizard-panel" data-step="2" style="display:none;">
+                            <div class="settings-group" style="margin-bottom:16px;"><label>Couleur (repère visuel)</label>${colorSwatchHtml('wProfileColor', colorVal)}</div>
                             <div class="welcome-group"><label>Taux horaire brut (€) * <span class="help-icon" data-help="Fiche de paie : ligne « Salaire de base » ou taux horaire indiqué.">ℹ️</span></label><input type="text" id="wTauxBrut" class="input-number" value="${wr.tauxBrut}"></div>
-                            <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement depuis le brut. Modifiable si tu connais ton net.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${wr.tauxNet}"></div>
+                            <div class="welcome-group"><label>Taux horaire net estimé (€) <span class="help-icon" data-help="Calculé automatiquement depuis le brut et le statut. Modifiable si tu connais ton net.">ℹ️</span></label><input type="text" id="wTauxNet" class="input-number" value="${wr.tauxNet}"></div>
                             <div class="welcome-group"><label>Statut</label><select id="wStatut" class="time-input-group select"><option value="Non-cadre" ${wr.statut === "Non-cadre" ? "selected" : ""}>Non-cadre</option><option value="Cadre" ${wr.statut === "Cadre" ? "selected" : ""}>Cadre</option></select></div>
+                            <div class="welcome-group"><label>Statut détaillé <span class="help-icon" data-help="Affine l'estimation du net : Cadre = coefficient un peu plus bas (cotisations plus élevées).">ℹ️</span></label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${wr.statutDetaille === 'Ouvrier' ? 'selected' : ''}>Ouvrier</option><option value="Employé" ${wr.statutDetaille === 'Employé' ? 'selected' : ''}>Employé</option><option value="ETAM" ${wr.statutDetaille === 'ETAM' ? 'selected' : ''}>ETAM</option><option value="Cadre" ${wr.statutDetaille === 'Cadre' ? 'selected' : ''}>Cadre</option></select></div>
+                            <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel) <span class="help-icon" data-help="Laisse vide pour l'estimation automatique. Sinon : net ÷ brut (parfois indiqué sur la fiche de paie).">ℹ️</span></label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex : 0.78" value="${wr.customNetCoeff != null ? wr.customNetCoeff : ''}"></div>
                             <div class="welcome-group"><label>Heures hebdomadaires contractuelles <span class="help-icon" data-help="Ex : 35. Sert au calcul du solde d'heures (excédent/déficit) sur l'accueil.">ℹ️</span></label><input type="text" id="wWeeklyContractHours" class="input-number" value="${wr.weeklyContractHours || 35}"></div>
                         </div>
-                        <div class="wizard-panel" data-step="3" style="display:none;">
+                        <div class="wizard-panel" data-step="2" style="display:none;">
                             <div class="welcome-group" id="ccnBlock" style="background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
                                 <label>Ta convention collective <span class="help-icon" data-help="Préremplit les majorations selon ta branche. Valeurs indicatives des minima : ton accord d'entreprise ou ton contrat peut prévoir mieux.">ℹ️</span></label>
                                 <input list="ccnList" id="wConventionInput" class="input-number" value="${escapeHtml(wr.ccnLabel || '')}" placeholder="Nom ou n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
                                 <datalist id="ccnList"></datalist>
                                 <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs de ma convention</button>
                                 <div class="modal-forgot" id="ccnUnknownLink" style="text-align:center; margin-top:10px;">Je ne connais pas ma convention</div>
+                                <div id="ccnCurrent" style="font-size:0.75rem; color:var(--salary-net); margin-top:8px; font-weight:500; text-align:center;">${wr.ccnLabel ? 'Convention sélectionnée : ' + escapeHtml(wr.ccnLabel) : ''}</div>
                             </div>
                             <p style="font-size:0.75rem; color:var(--text-secondary); margin:14px 0 6px;">Valeurs ci-dessous pré-remplies <strong>à vérifier</strong> sur ta fiche de paie ou ta convention :</p>
                             <div class="welcome-group"><label>Plage de nuit (de – à)</label><div style="display:flex; gap:8px; align-items:center;"><input type="text" id="wNightStart" class="input-number" value="${wr.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${wr.nightEnd}" style="flex:1;"> h</div></div>
@@ -1337,31 +1340,28 @@
                             <div class="welcome-group"><label>Majoration fériés (%)</label><input type="text" id="wHolidayRate" class="input-number" value="${Math.round(wr.holidayRate * 100)}"></div>
                             <div class="welcome-group"><label>Heures sup. au-delà de (h/jour)</label><input type="text" id="wOvertimeThreshold" class="input-number" value="${wr.overtimeThreshold}"></div>
                             <div class="welcome-group"><label>Majoration heures sup. (%)</label><input type="text" id="wOvertimeRate" class="input-number" value="${Math.round(wr.overtimeRate * 100)}"></div>
-                            <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${wr.roundingRule === 'none' ? 'selected' : ''}>Aucun</option><option value="minute" ${wr.roundingRule === 'minute' ? 'selected' : ''}>Minute</option><option value="5min" ${wr.roundingRule === '5min' ? 'selected' : ''}>5 minutes</option><option value="10min" ${wr.roundingRule === '10min' ? 'selected' : ''}>10 minutes</option><option value="15min" ${wr.roundingRule === '15min' ? 'selected' : ''}>15 minutes</option></select></div>
-                            <details class="help-section" style="margin-top:14px;">
-                                <summary>Réglages avancés (facultatif)</summary>
-                                <div class="card-title" style="margin:6px 0;">Primes</div>
-                                ${primesHtml}
-                                <div class="card-title" style="margin:12px 0 6px;">Prime d'ancienneté</div>
-                                <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wAncienneteEnabled" ${wr.ancienneteEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
-                                <div class="welcome-group"><label>Type</label><select id="wAncienneteType" class="time-input-group select"><option value="percent" ${wr.ancienneteType === 'percent' ? 'selected' : ''}>% par année</option><option value="fixed" ${wr.ancienneteType === 'fixed' ? 'selected' : ''}>Montant fixe mensuel (€)</option></select></div>
-                                <div class="welcome-group"><label>Valeur</label><input type="text" id="wAncienneteValue" class="input-number" value="${wr.ancienneteValue || 1}"></div>
-                                <div class="welcome-group"><label>Date d'entrée (année-mois)</label><input type="month" id="wAncienneteStartDate" value="${wr.ancienneteStartDate || '2020-01'}"></div>
-                                <div class="card-title" style="margin:12px 0 6px;">13e mois</div>
-                                <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wThirteenthEnabled" ${(wr.thirteenthMonth && wr.thirteenthMonth.enabled) ? 'checked' : ''}><span class="slider"></span></label></div>
-                                <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'once') ? 'selected' : ''}>Versé en une fois</option><option value="monthly" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'monthly') ? 'selected' : ''}>Mensualisé</option></select></div>
-                                <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" value="${(wr.thirteenthMonth && wr.thirteenthMonth.amount) ? wr.thirteenthMonth.amount : ''}" placeholder="Montant"></div>
-                                <div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select">${moisOptions}</select></div>
-                                <div class="card-title" style="margin:12px 0 6px;">Statut et coefficient</div>
-                                <div class="welcome-group"><label>Statut détaillé</label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${wr.statutDetaille === 'Ouvrier' ? 'selected' : ''}>Ouvrier</option><option value="Employé" ${wr.statutDetaille === 'Employé' ? 'selected' : ''}>Employé</option><option value="ETAM" ${wr.statutDetaille === 'ETAM' ? 'selected' : ''}>ETAM</option><option value="Cadre" ${wr.statutDetaille === 'Cadre' ? 'selected' : ''}>Cadre</option></select></div>
-                                <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel)</label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex : 0.78" value="${wr.customNetCoeff != null ? wr.customNetCoeff : ''}"></div>
-                                <div class="card-title" style="margin:12px 0 6px;">Heures sup. avancées</div>
-                                <div class="inline-switch"><span>Utiliser un seuil hebdomadaire</span><label class="switch"><input type="checkbox" id="wWeeklyOvertimeEnabled" ${wr.weeklyOvertimeEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
-                                <div class="welcome-group"><label>Seuil hebdomadaire (heures)</label><input type="text" id="wWeeklyOvertimeThreshold" class="input-number" value="${wr.weeklyOvertimeThreshold || 35}"></div>
-                                <div class="welcome-group"><label>Second seuil HS (heures/jour, optionnel)</label><input type="text" id="wOvertimeThreshold2" class="input-number" placeholder="ex : 8" value="${wr.overtimeThreshold2 || ''}"></div>
-                                <div class="welcome-group"><label>Majoration second seuil (%)</label><input type="text" id="wOvertimeRate2" class="input-number" placeholder="ex : 50" value="${wr.overtimeRate2 ? Math.round(wr.overtimeRate2 * 100) : ''}"></div>
-                                <div class="welcome-group"><label>Heures mensuelles contractuelles</label><input type="text" id="wMonthlyContractHours" class="input-number" value="${wr.monthlyContractHours || 151.67}"></div>
-                            </details>
+                            <div class="inline-switch"><span>Utiliser un seuil hebdomadaire</span><label class="switch"><input type="checkbox" id="wWeeklyOvertimeEnabled" ${wr.weeklyOvertimeEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Seuil hebdomadaire (heures)</label><input type="text" id="wWeeklyOvertimeThreshold" class="input-number" value="${wr.weeklyOvertimeThreshold || 35}"></div>
+                            <div class="welcome-group"><label>Second seuil HS (heures/jour, optionnel)</label><input type="text" id="wOvertimeThreshold2" class="input-number" placeholder="ex : 8" value="${wr.overtimeThreshold2 || ''}"></div>
+                            <div class="welcome-group"><label>Majoration second seuil (%)</label><input type="text" id="wOvertimeRate2" class="input-number" placeholder="ex : 50" value="${wr.overtimeRate2 ? Math.round(wr.overtimeRate2 * 100) : ''}"></div>
+                            <div class="welcome-group"><label>Règle d'arrondi <span class="help-icon" data-help="Arrondit le temps travaillé avant le calcul du salaire. Ex. : avec « 15 minutes », 7 h 52 devient 8 h 00. « Aucun » = à la seconde près.">ℹ️</span></label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${wr.roundingRule === 'none' ? 'selected' : ''}>Aucun</option><option value="minute" ${wr.roundingRule === 'minute' ? 'selected' : ''}>Minute</option><option value="5min" ${wr.roundingRule === '5min' ? 'selected' : ''}>5 minutes</option><option value="10min" ${wr.roundingRule === '10min' ? 'selected' : ''}>10 minutes</option><option value="15min" ${wr.roundingRule === '15min' ? 'selected' : ''}>15 minutes</option></select></div>
+                        </div>
+                        <div class="wizard-panel" data-step="3" style="display:none;">
+                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:0 0 10px;">Facultatif. Laisse tel quel si tu n'es pas concerné.</p>
+                            <div class="card-title" style="margin:6px 0;">Primes</div>
+                            ${primesHtml}
+                            <div class="card-title" style="margin:12px 0 6px;">Prime d'ancienneté</div>
+                            <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wAncienneteEnabled" ${wr.ancienneteEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Type</label><select id="wAncienneteType" class="time-input-group select"><option value="percent" ${wr.ancienneteType === 'percent' ? 'selected' : ''}>% par année</option><option value="fixed" ${wr.ancienneteType === 'fixed' ? 'selected' : ''}>Montant fixe mensuel (€)</option></select></div>
+                            <div class="welcome-group"><label>Valeur</label><input type="text" id="wAncienneteValue" class="input-number" value="${wr.ancienneteValue || 1}"></div>
+                            <div class="welcome-group"><label>Date d'entrée (année-mois)</label><input type="month" id="wAncienneteStartDate" value="${wr.ancienneteStartDate || '2020-01'}"></div>
+                            <div class="card-title" style="margin:12px 0 6px;">13e mois</div>
+                            <div class="inline-switch"><span>Activer</span><label class="switch"><input type="checkbox" id="wThirteenthEnabled" ${(wr.thirteenthMonth && wr.thirteenthMonth.enabled) ? 'checked' : ''}><span class="slider"></span></label></div>
+                            <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'once') ? 'selected' : ''}>Versé en une fois</option><option value="monthly" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'monthly') ? 'selected' : ''}>Mensualisé</option></select></div>
+                            <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" value="${(wr.thirteenthMonth && wr.thirteenthMonth.amount) ? wr.thirteenthMonth.amount : ''}" placeholder="Montant"></div>
+                            <div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select">${moisOptions}</select></div>
+                            <div class="card-title" style="margin:12px 0 6px;">Heures mensuelles</div>
+                            <div class="welcome-group"><label>Heures mensuelles contractuelles <span class="help-icon" data-help="Ex : 151,67 pour 35 h/semaine. Sert au prorata de certaines primes et de l'ancienneté à montant fixe.">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${wr.monthlyContractHours || 151.67}"></div>
                         </div>
                         <div style="display:flex; gap:10px; margin-top:22px;">
                             <button class="btn btn-secondary" id="wizPrev" style="flex:1;">Précédent</button>
@@ -1382,8 +1382,8 @@
             document.getElementById('wizNext').innerText = (cur === total) ? (isWelcome ? "Ouvrir l'application" : "Enregistrer") : "Suivant";
         }
         function validateStep() {
-            if (cur === 1) { if (!document.getElementById('wProfileName').value.trim()) { showInfoModal("Donne un nom à cet employeur."); return false; } }
-            if (cur === 2) {
+            if (cur === 1) {
+                if (!document.getElementById('wProfileName').value.trim()) { showInfoModal("Donne un nom à cet employeur."); return false; }
                 const b = parseFloat(document.getElementById('wTauxBrut').value.replace(',', '.'));
                 const nt = parseFloat(document.getElementById('wTauxNet').value.replace(',', '.'));
                 if (isNaN(b) || b <= 0) { showInfoModal("Taux horaire brut invalide."); return false; }
@@ -1403,11 +1403,25 @@
         const tauxBrutInput = document.getElementById('wTauxBrut');
         const tauxNetInput = document.getElementById('wTauxNet');
         const statutSelect = document.getElementById('wStatut');
+        const statutDetailSelect = document.getElementById('wStatutDetaille');
+        const customCoeffInput = document.getElementById('wCustomNetCoeff');
         let autoNet = true;
-        function netFromBrut() { let brut = parseFloat(tauxBrutInput.value.replace(',', '.')); if (isNaN(brut)) brut = 0; const coeff = statutSelect.value === 'Cadre' ? 0.75 : 0.78; tauxNetInput.value = (brut * coeff).toFixed(2); }
+        function baseCoeff() {
+            if (customCoeffInput && customCoeffInput.value) { const c = parseFloat(customCoeffInput.value.replace(',', '.')); if (!isNaN(c)) return c; }
+            const isCadre = (statutSelect && statutSelect.value === 'Cadre') || (statutDetailSelect && statutDetailSelect.value === 'Cadre');
+            return isCadre ? 0.75 : 0.78;
+        }
+        function netFromBrut() { let brut = parseFloat(tauxBrutInput.value.replace(',', '.')); if (isNaN(brut)) brut = 0; tauxNetInput.value = (brut * baseCoeff()).toFixed(2); }
         tauxBrutInput.addEventListener('input', () => { if (autoNet) netFromBrut(); });
-        tauxNetInput.addEventListener('input', () => { autoNet = false; const net = parseFloat(tauxNetInput.value.replace(',', '.')); const coeff = statutSelect.value === 'Cadre' ? 0.75 : 0.78; tauxBrutInput.value = isNaN(net) ? '' : (net / coeff).toFixed(2); autoNet = true; });
+        tauxNetInput.addEventListener('input', () => { autoNet = false; const net = parseFloat(tauxNetInput.value.replace(',', '.')); tauxBrutInput.value = isNaN(net) ? '' : (net / baseCoeff()).toFixed(2); autoNet = true; });
         statutSelect.addEventListener('change', () => { if (autoNet) netFromBrut(); });
+        if (statutDetailSelect) statutDetailSelect.addEventListener('change', () => { if (autoNet) netFromBrut(); });
+        if (customCoeffInput) customCoeffInput.addEventListener('input', () => { if (autoNet) netFromBrut(); });
+        const wizThirteenthType = document.getElementById('wThirteenthType');
+        const wizThirteenthMonth = document.getElementById('wThirteenthMonth');
+        function wizSyncThirteenth() { if (wizThirteenthType && wizThirteenthMonth) { const monthly = wizThirteenthType.value === 'monthly'; wizThirteenthMonth.disabled = monthly; wizThirteenthMonth.style.opacity = monthly ? '0.45' : '1'; } }
+        if (wizThirteenthType) wizThirteenthType.addEventListener('change', wizSyncThirteenth);
+        wizSyncThirteenth();
         // Conventions collectives
         ccnPopulateDatalist('ccnList');
         if (!conventionsDB) fetch('conventions.json').then(r => r.json()).then(db => { conventionsDB = db; ccnPopulateDatalist('ccnList'); }).catch(() => {});
@@ -1448,6 +1462,8 @@
                 if (f.holidayRate !== undefined) sv('wHolidayRate', Math.round(f.holidayRate * 100));
                 if (f.overtimeThreshold !== undefined) sv('wOvertimeThreshold', f.overtimeThreshold);
                 if (f.overtimeRate !== undefined) sv('wOvertimeRate', Math.round(f.overtimeRate * 100));
+                workRules.ccnLabel = inp.value;
+                const _ccnCur = document.getElementById('ccnCurrent'); if (_ccnCur) _ccnCur.innerText = inp.value ? ('Convention sélectionnée : ' + inp.value) : '';
                 showInfoModal("Valeurs de la convention appliquées. Vérifie-les, puis valide.");
             });
         };
@@ -2698,6 +2714,7 @@
                         <div id="activeMaj"></div>
                         <div id="majDetails"></div>
                     </div>
+                    <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
                     <div class="card" id="weekCard" style="cursor:pointer; padding:14px 18px;">
                         <div class="week-line"><span>Cette semaine</span><span id="weekHours">–</span></div>
                         <div class="week-line sub"><span id="weekBalanceLabel">Solde hebdo</span><span id="weekBalance">–</span></div>
@@ -2711,7 +2728,6 @@
                         <div class="card-header"><span class="card-title">Pauses courtes</span><span class="counter-value" id="shortPauseTime">00:00:00</span></div>
                         <div class="button-group"><button class="btn btn-lunch" id="shortPauseToggleBtn">Pause courte</button></div>
                     </div>
-                    <div class="card" id="primesCard" style="display:none;"><div class="card-title" style="margin-bottom:12px;">Primes journalières</div><div id="primesDetails"></div></div>
                     <button class="btn btn-stop" id="stopDayBtn">Arrêter la journée</button>
                 </div>
                 <button class="fab-help" id="fabHelp" aria-label="Aide" title="Aide">?</button>
