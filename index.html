@@ -310,7 +310,7 @@
         holidaysList: []
     };
     let userPrefs = {
-        autoDarkMode: true, darkMode: false,
+        autoDarkMode: false, darkMode: false,
         autoNightMode: false,
         highContrast: false,
         highPerformance: false,
@@ -1217,7 +1217,7 @@
             if (isWelcome) {
                 loadProfiles();
                 userPrefs.accentColor = "#0A84FF";
-                userPrefs.autoDarkMode = true;
+                userPrefs.autoDarkMode = false; userPrefs.darkMode = false;
                 userPrefs.compactMode = false;
                 savePrefs();
                 applyTheme();
@@ -1444,7 +1444,7 @@
             if (isWelcome) {
                 loadProfiles();
                 userPrefs.accentColor = "#0A84FF";
-                userPrefs.autoDarkMode = true;
+                userPrefs.autoDarkMode = false; userPrefs.darkMode = false;
                 userPrefs.compactMode = false;
                 savePrefs();
                 applyTheme();
@@ -1460,8 +1460,8 @@
         }
         function showWizardDone(name) {
             root.innerHTML = `
-                <div class="app" style="justify-content:flex-start;">
-                    <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:flex-start;">
+                <div class="app" style="justify-content:center;">
+                    <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:center;">
                         <div class="card" style="width:100%; text-align:center;">
                             <div class="main-title logo-mark" style="font-size:1.5rem; justify-content:center;">${LOGO_HTML}</div>
                             <div style="font-size:2.6rem; color:var(--salary-net); margin:16px 0 4px;">✓</div>
