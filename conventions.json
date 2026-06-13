@@ -5,7 +5,7 @@
     {
       "idcc": 16,
       "name": "Transports routiers (marchandises)",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "nightStart": 21, "nightEnd": 6, "nightRate": 0.20, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25 },
       "notes": "Travail de nuit (21 h - 6 h) : prime horaire d'environ 20 % du taux conventionnel. +50 % au-delà de 43 h/semaine (non appliqué automatiquement). Frais et paniers selon protocole frais."
     },
@@ -54,7 +54,7 @@
     {
       "idcc": 843,
       "name": "Boulangerie-pâtisserie artisanale",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "nightStart": 20, "nightEnd": 6, "nightRate": 0.25, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25 },
       "notes": "Travail de nuit majoré (environ +25 % entre 20 h et 6 h — à vérifier selon avenants). Dimanche : repos ou majoration selon organisation."
     },
@@ -75,7 +75,7 @@
     {
       "idcc": 1351,
       "name": "Prévention et sécurité (sécurité privée)",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "nightStart": 21, "nightEnd": 6, "nightRate": 0.10, "sundayEnabled": true, "sundayRate": 0.10, "holidayEnabled": true, "holidayRate": 1.0, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25 },
       "notes": "Nuit (21 h - 6 h) et dimanche : +10 % chacune (cumulables). Férié travaillé : +100 %. Paniers selon accord."
     },
@@ -145,9 +145,9 @@
     {
       "idcc": 1979,
       "name": "Hôtels, cafés, restaurants (HCR)",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.10 },
-      "notes": "Paliers HCR : +10 % de la 36e à la 39e h, +20 % de la 40e à la 43e h, +50 % au-delà (1er palier seul appliqué automatiquement). Pas de majoration de nuit générale dans la branche. Avantage nourriture spécifique."
+      "notes": "Paliers HCR : +10 % de la 36e à la 39e h, +20 % de la 40e à la 42e h, +25 % la 43e h, +50 % au-delà (1er palier seul appliqué automatiquement). Pas de majoration de nuit générale dans la branche. Avantage nourriture spécifique."
     },
     {
       "idcc": 1996,
@@ -208,23 +208,23 @@
     {
       "idcc": 2941,
       "name": "Aide, accompagnement, soins et services à domicile (BAD)",
-      "lastVerified": null,
-      "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "sundayEnabled": true, "holidayEnabled": true },
-      "notes": "Dimanches et fériés travaillés : majoration conventionnelle spécifique (souvent ~45 %) — à vérifier. Temps de déplacement indemnisés."
+      "lastVerified": "2026-06",
+      "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "sundayEnabled": true, "sundayRate": 0.45, "holidayEnabled": true, "holidayRate": 0.45 },
+      "notes": "Dimanches et jours fériés travaillés : +45 % (le 1er mai est légalement +100 %, non distingué automatiquement). Temps de déplacement indemnisés."
     },
     {
       "idcc": 3043,
       "name": "Propreté (entreprises de propreté)",
-      "lastVerified": null,
-      "fields": { "nightStart": 21, "nightEnd": 5, "nightRate": 0.20, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "sundayEnabled": true, "holidayEnabled": true, "holidayRate": 1.0 },
-      "notes": "Majoration de nuit +20 % (21 h - 5 h). Dimanche : selon conditions. Férié travaillé : +100 %. +50 % HS au-delà de 43 h/sem (non auto)."
+      "lastVerified": "2026-06",
+      "fields": { "nightStart": 21, "nightEnd": 5, "nightRate": 0.20, "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 35, "overtimeRate": 0.25, "sundayEnabled": true, "sundayRate": 0.25, "holidayEnabled": true, "holidayRate": 0.50 },
+      "notes": "Avenant n°23 du 18/12/2025. Nuit +20 % (21 h - 5 h ; 21 h - 6 h pour les travailleurs de nuit). Dimanche planifié : +25 %. Fériés ordinaires : +50 % ; 1er janvier, 1er mai, 14 juillet et 25 décembre : +100 % (non distingués automatiquement). +50 % HS au-delà de 43 h/sem (non auto)."
     },
     {
       "idcc": 3239,
       "name": "Particuliers employeurs et emploi à domicile",
-      "lastVerified": null,
+      "lastVerified": "2026-06",
       "fields": { "weeklyOvertimeEnabled": true, "weeklyOvertimeThreshold": 40, "overtimeRate": 0.25 },
-      "notes": "Durée conventionnelle de 40 h/semaine pour un temps plein : les HS démarrent au-delà de 40 h. Présence de nuit et présence responsable : régimes spécifiques."
+      "notes": "Durée conventionnelle de 40 h/semaine pour un temps plein : les HS démarrent au-delà de 40 h. Jours fériés : 1er mai +100 %, autres fériés +10 % (non modélisés). Présence de nuit et présence responsable : régimes spécifiques."
     },
     {
       "idcc": 3248,
