@@ -1343,6 +1343,30 @@
         enhanceSelects();
     }
     // ---------- ASSISTANT DE CONFIGURATION (création guidée par étapes) ----------
+    function showWelcomeIntro() {
+        const root = document.getElementById('appRoot');
+        const stepLabels = ['Rémunération', 'Majorations', 'Primes'];
+        const chips = stepLabels.map((l, i) => `
+            <div style="flex:1; max-width:130px; background:var(--btn-secondary-bg); border-radius:16px; padding:14px 6px;">
+                <div style="width:30px; height:30px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; font-size:0.85rem; display:flex; align-items:center; justify-content:center; margin:0 auto 8px;">${i + 1}</div>
+                <div style="font-size:0.74rem; color:var(--text-secondary); font-weight:600;">${l}</div>
+            </div>`).join('');
+        root.innerHTML = `
+            <div class="app" style="justify-content:center;">
+                <div class="main-card" style="padding:20px; max-width:480px; margin:0 auto; justify-content:center;">
+                    <div class="card" style="width:100%; text-align:center;">
+                        <div class="main-title logo-mark" style="font-size:2.1rem; margin-bottom:6px;">${LOGO_HTML}</div>
+                        <p style="font-size:0.95rem; color:var(--text-primary); font-weight:600; margin:0 0 20px;">Ton salaire, calculé en temps réel.</p>
+                        <p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.55; margin:0 0 14px;">Fini les calculs de paie à la main. TicTime suit ton temps de travail et estime ta rémunération en direct, majorations comprises (nuit, dimanche, fériés, heures sup), avec primes, ancienneté et 13e mois.</p>
+                        <p style="font-size:0.86rem; color:var(--text-secondary); line-height:1.55; margin:0 0 22px;">Tes données restent sur ton appareil et tout reste modifiable quand tu veux. Prêt ? 3 petites étapes et c'est parti.</p>
+                        <div style="display:flex; justify-content:center; gap:8px;">${chips}</div>
+                        <button class="btn btn-primary" id="welcomeStartBtn" style="width:100%; margin-top:24px;">Commencer</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('welcomeStartBtn').onclick = () => showSetupWizard(true);
+    }
     function showSetupWizard(isWelcome = true) {
         const isNew = !isWelcome;
         const root = document.getElementById('appRoot');
@@ -1350,9 +1374,9 @@
         const wr = workRules;
         const colorVal = (ap && ap.color) || PROFILE_COLORS[0];
         const steps = [
-            { t: "Employeur & rémunération", s: "Nom, couleur et taux — sur ta fiche de paie." },
-            { t: "Tes majorations", s: "Choisis ta convention, ou vérifie les valeurs proposées." },
-            { t: "Primes & compléments", s: "Facultatif : primes, ancienneté, 13e mois." }
+            { t: "Employeur & rémunération" },
+            { t: "Tes majorations" },
+            { t: "Primes & compléments" }
         ];
         const total = steps.length;
         const moisOptions = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((m, i) => `<option value="${i}" ${(wr.thirteenthMonth && wr.thirteenthMonth.month === i) ? 'selected' : (i === 11 && !(wr.thirteenthMonth && wr.thirteenthMonth.month !== undefined) ? 'selected' : '')}>${m}</option>`).join('');
@@ -1370,8 +1394,7 @@
                     <div class="card" style="width:100%;">
                         <div style="text-align:center; margin-bottom:4px;"><div class="main-title logo-mark" style="font-size:1.5rem;">${LOGO_HTML}</div></div>
                         <div class="wizard-steps"><span class="wizard-dot" data-n="1">1</span><span class="wizard-link"></span><span class="wizard-dot" data-n="2">2</span><span class="wizard-link"></span><span class="wizard-dot" data-n="3">3</span></div>
-                        <div class="card-title" id="wizardStepTitle" style="font-size:1.2rem; text-align:center; margin:8px 0 2px; color:var(--text-primary);"></div>
-                        <div id="wizardStepSub" style="text-align:center; font-size:0.8rem; color:var(--text-secondary); margin-bottom:18px;"></div>
+                        <div class="card-title" id="wizardStepTitle" style="font-size:1.2rem; text-align:center; margin:8px 0 14px; color:var(--text-primary);"></div>
                         <div class="wizard-panel" data-step="1">
                             <p style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5; margin-bottom:16px; text-align:center;">Ces réglages déterminent la précision de ton salaire calculé. Tu pourras tout modifier à tout moment.</p>
                             <div class="welcome-group"><label>Nom de l'employeur * <span class="help-icon" data-help="Souvent le nom de la société. Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="" placeholder="ex : nom de votre employeur"></div>
@@ -1392,7 +1415,7 @@
                                 <div class="modal-forgot" id="ccnUnknownLink" style="text-align:center; margin-top:10px;">Je ne connais pas ma convention</div>
                                 <div id="ccnCurrent" style="font-size:0.75rem; color:var(--salary-net); margin-top:8px; font-weight:500; text-align:center;">${wr.ccnLabel ? 'Convention sélectionnée : ' + escapeHtml(wr.ccnLabel) : ''}</div>
                             </div>
-                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:14px 0 6px;">Valeurs ci-dessous pré-remplies <strong>à vérifier</strong> sur ta fiche de paie ou ta convention :</p>
+                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:14px 0 10px; text-align:center;">Valeurs ci-dessous pré-remplies <strong>à vérifier</strong> sur ta fiche de paie ou ta convention :</p>
                             <div class="welcome-group"><label>Plage de nuit (de – à)</label><div style="display:flex; gap:8px; align-items:center;"><input type="text" id="wNightStart" class="input-number" value="${wr.nightStart}" style="flex:1;"> h à <input type="text" id="wNightEnd" class="input-number" value="${wr.nightEnd}" style="flex:1;"> h</div></div>
                             <div class="welcome-group"><label>Majoration nuit (%)</label><input type="text" id="wNightRate" class="input-number" value="${Math.round(wr.nightRate * 100)}"></div>
                             <div class="inline-switch"><span>2e plage de nuit (taux différent)</span><label class="switch"><input type="checkbox" id="wNight2Enabled" ${wr.nightRate2!=null?'checked':''}><span class="slider"></span></label></div>
@@ -1413,7 +1436,7 @@
                             <div class="welcome-group"><label>Règle d'arrondi <span class="help-icon" data-help="Arrondit le temps travaillé avant le calcul du salaire. Ex. : avec « 15 minutes », 7 h 52 devient 8 h 00. « Aucun » = à la seconde près.">ℹ️</span></label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${wr.roundingRule === 'none' ? 'selected' : ''}>Aucun</option><option value="minute" ${wr.roundingRule === 'minute' ? 'selected' : ''}>Minute</option><option value="5min" ${wr.roundingRule === '5min' ? 'selected' : ''}>5 minutes</option><option value="10min" ${wr.roundingRule === '10min' ? 'selected' : ''}>10 minutes</option><option value="15min" ${wr.roundingRule === '15min' ? 'selected' : ''}>15 minutes</option></select></div>
                         </div>
                         <div class="wizard-panel" data-step="3" style="display:none;">
-                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:0 0 10px;">Facultatif. Laisse tel quel si tu n'es pas concerné.</p>
+                            <p style="font-size:0.75rem; color:var(--text-secondary); margin:0 0 14px; text-align:center;">Facultatif. Laisse tel quel si tu n'es pas concerné.</p>
                             <div class="card-title" style="margin:6px 0;">Primes</div>
                             ${primesHtml}
                             <div class="card-title" style="margin:12px 0 6px;">Prime d'ancienneté</div>
@@ -1442,7 +1465,6 @@
         function renderStep() {
             document.querySelectorAll('.wizard-panel').forEach(p => { p.style.display = (parseInt(p.dataset.step) === cur) ? 'block' : 'none'; });
             document.getElementById('wizardStepTitle').innerText = steps[cur - 1].t;
-            document.getElementById('wizardStepSub').innerText = steps[cur - 1].s;
             document.querySelectorAll('.wizard-dot').forEach(d => { const n = parseInt(d.dataset.n); d.classList.toggle('active', n === cur); d.classList.toggle('done', n < cur); });
             document.getElementById('wizPrev').style.visibility = (cur === 1) ? 'hidden' : 'visible';
             document.getElementById('wizNext').innerText = (cur === total) ? (isWelcome ? "Ouvrir l'application" : "Enregistrer") : "Suivant";
@@ -1882,7 +1904,7 @@
     }
     function proceedAfterAuth() {
         const hasRules = localStorage.getItem('workRules') !== null;
-        if (!hasRules) showSetupWizard(true); else loadMainApp();
+        if (!hasRules) showWelcomeIntro(); else loadMainApp();
     }
     function showAuthPage(mode) {
         const isSignup = mode === 'signup';
