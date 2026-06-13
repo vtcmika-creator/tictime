@@ -1671,7 +1671,7 @@
             return `<div class="card" style="padding:14px 16px; display:flex; align-items:center; gap:12px;">
                 <span class="profile-dot" style="background:${p.color || '#0A84FF'}; width:14px; height:14px;"></span>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}${active ? ' · <span style="color:var(--salary-net);">actif</span>' : ''}</div>
+                    <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}${(p.rules && p.rules.geoEnabled) ? ' <span class="mono-icon" style="font-size:0.8rem; width:auto;" title="Géolocalisation activée">🛰️</span>' : ''}${active ? ' · <span style="color:var(--salary-net);">actif</span>' : ''}</div>
                     <div style="font-size:0.75rem; color:var(--text-secondary);">${count} session${count > 1 ? 's' : ''}</div>
                 </div>
                 ${active ? '' : `<button class="btn btn-secondary profile-activate" data-id="${p.id}" style="padding:8px 14px; font-size:0.82rem;">Activer</button>`}
@@ -2703,7 +2703,7 @@
         if (!bar) return;
         const p = getActiveProfile();
         if (!p) { bar.innerHTML = ''; return; }
-        bar.innerHTML = `<div class="profile-chip" id="profileChip"><span class="profile-dot" style="background:${p.color || '#0A84FF'};"></span><span>${escapeHtml(p.name)}</span><span class="chev">▾</span></div>`;
+        bar.innerHTML = `<div class="profile-chip" id="profileChip"><span class="profile-dot" style="background:${p.color || '#0A84FF'};"></span><span>${escapeHtml(p.name)}</span>${workRules.geoEnabled ? '<span class="mono-icon" style="font-size:0.85rem; width:auto;" title="Géolocalisation activée">🛰️</span>' : ''}<span class="chev">▾</span></div>`;
         const chip = document.getElementById('profileChip');
         if (chip) chip.onclick = () => { if (!locked) showProfilesPage(); };
     }
