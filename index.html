@@ -313,6 +313,7 @@
         weeklyContractHours: 35,
         monthlyContractHours: 151.67,
         geoEnabled: false,
+        ccnLabel: "",
         holidaysList: []
     };
     let userPrefs = {
@@ -927,15 +928,10 @@
                         <div class="card-title" style="font-size:1.4rem; text-align:center; margin-top:8px; margin-bottom:24px;">${title}</div>
                         <div class="welcome-group"><label>Nom de l'employeur${nameReq ? ' *' : ''} <span class="help-icon" data-help="Donnez un nom à cet employeur (souvent le nom de la société). Chaque employeur a ses propres taux, majorations, congés et historique.">ℹ️</span></label><input type="text" id="wProfileName" class="input-number" value="${escapeHtml(nameVal)}" placeholder="ex : nom de votre employeur"></div>
                         <div class="settings-group" style="margin-bottom:20px;"><label>Couleur (repère visuel)</label>${colorSwatchHtml('wProfileColor', colorVal)}</div>
-                        <div class="inline-switch" style="margin-bottom:20px;">
-                            <span id="modeSimpleLabel">Mode simple</span>
-                            <label class="switch"><input type="checkbox" id="preciseModeToggle"><span class="slider"></span></label>
-                            <span id="modePrecisLabel">Mode précis</span>
-                        </div>
                         <div id="simpleModeFields">
-                            <div class="welcome-group" id="ccnBlock" style="display:none; background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
+                            <div class="welcome-group" id="ccnBlock" style="background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
                                 <label>Convention collective (optionnel) <span class="help-icon" data-help="Pré-remplit majorations, plage de nuit et heures sup selon votre convention de branche. Valeurs indicatives : vos accords d'entreprise ou votre contrat peuvent prévoir mieux.">ℹ️</span></label>
-                                <input list="ccnList" id="wConventionInput" class="input-number" placeholder="Tapez un nom ou un n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
+                                <input list="ccnList" id="wConventionInput" class="input-number" value="${escapeHtml(workRules.ccnLabel || '')}" placeholder="Tapez un nom ou un n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
                                 <datalist id="ccnList"></datalist>
                                 <p style="font-size:0.72rem; color:var(--text-secondary); margin:8px 0 0;">L'intitulé et le n° IDCC de votre convention figurent sur votre <strong>fiche de paie</strong> et sur votre contrat de travail.</p>
                                 <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs indicatives</button>
@@ -959,8 +955,9 @@
                             <div class="welcome-group"><label>Majoration fériés (%)</label><input type="text" id="wHolidayRate" class="input-number" value="${workRules.holidayRate*100}"></div>
                             <div class="welcome-group"><label>Règle d'arrondi</label><select id="wRoundingRule" class="time-input-group select"><option value="none" ${workRules.roundingRule==='none'?"selected":""}>Aucun</option><option value="minute" ${workRules.roundingRule==='minute'?"selected":""}>Minute</option><option value="5min" ${workRules.roundingRule==='5min'?"selected":""}>5 minutes</option><option value="10min" ${workRules.roundingRule==='10min'?"selected":""}>10 minutes</option><option value="15min" ${workRules.roundingRule==='15min'?"selected":""}>15 minutes</option></select></div>
                         </div>
-                        <div id="preciseModeFields" style="display:none;">
-                            <hr><div class="card-title">Statut et coefficient</div>
+                        <details class="help-section" id="preciseModeFields" style="margin-top:8px;" ${(workRules.weeklyOvertimeEnabled || workRules.ancienneteEnabled || (workRules.thirteenthMonth && workRules.thirteenthMonth.enabled) || workRules.customNetCoeff != null || (workRules.primes || []).some(p => p.enabled)) ? 'open' : ''}>
+                            <summary>Réglages avancés</summary>
+                            <div class="card-title" style="margin-top:8px;">Statut et coefficient</div>
                             <div class="welcome-group"><label>Statut détaillé</label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${workRules.statutDetaille==="Ouvrier"?"selected":""}>Ouvrier</option><option value="Employé" ${workRules.statutDetaille==="Employé"?"selected":""}>Employé</option><option value="ETAM" ${workRules.statutDetaille==="ETAM"?"selected":""}>ETAM</option><option value="Cadre" ${workRules.statutDetaille==="Cadre"?"selected":""}>Cadre</option></select></div>
                             <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel)</label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex: 0.78" value="${workRules.customNetCoeff||''}"></div>
                             <hr><div class="card-title">Heures supplémentaires avancées <span class="help-icon" data-help="Activez le seuil hebdomadaire pour dépasser un nombre d'heures par semaine, ou définissez un second seuil journalier (ex: 50% après 8h).">ℹ️</span></div>
@@ -986,7 +983,7 @@
                                 <div id="thirteenthMonthDiv" style="display:${workRules.thirteenthMonth.type==='once'?'block':'none'}"><div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11" ${workRules.thirteenthMonth.month===11?"selected":""}>Décembre</option></select></div></div>
                             </div>
                             <hr><div class="welcome-group"><label>Heures mensuelles contractuelles (pour primes journalières) <span class="help-icon" data-help="Nombre d'heures travaillées par mois (ex: 151,67).">ℹ️</span></label><input type="text" id="wMonthlyContractHours" class="input-number" value="${workRules.monthlyContractHours}"></div>
-                        </div>
+                        </details>
                         <hr>
                         <div class="inline-switch" style="margin-top:4px;"><span>Géolocalisation des pointages <span class="help-icon" data-help="Optionnel. Enregistre votre position GPS au démarrage et à l'arrêt de la journée, comme commencement de preuve de présence en cas de litige avec l'employeur. Données stockées sur votre appareil et votre cloud, désactivable à tout moment.">ℹ️</span></span><label class="switch"><input type="checkbox" id="wGeoEnabled" ${workRules.geoEnabled?"checked":""}><span class="slider"></span></label></div>
                         <button class="btn btn-primary" id="saveConfigBtn" style="margin-top:24px; display:block; margin-left:auto; margin-right:auto;">${isWelcome ? "Ouvrir l'application" : "Enregistrer"}</button>
@@ -995,38 +992,7 @@
                 </div>
             </div>
         `;
-        // Mode simple/précis
-        const preciseToggle = document.getElementById('preciseModeToggle');
-        const simpleLabel = document.getElementById('modeSimpleLabel');
-        const preciseLabel = document.getElementById('modePrecisLabel');
-        function updateModeColor() {
-            if (preciseToggle.checked) {
-                simpleLabel.classList.remove('mode-active');
-                preciseLabel.classList.add('mode-active');
-            } else {
-                simpleLabel.classList.add('mode-active');
-                preciseLabel.classList.remove('mode-active');
-            }
-        }
-        preciseToggle.addEventListener('change', updateModeColor);
-        updateModeColor();
-        const simpleDiv = document.getElementById('simpleModeFields');
-        const preciseDiv = document.getElementById('preciseModeFields');
-        preciseToggle.addEventListener('change', () => {
-            if (preciseToggle.checked) { simpleDiv.style.display = 'none'; preciseDiv.style.display = 'block'; }
-            else { simpleDiv.style.display = 'block'; preciseDiv.style.display = 'none'; }
-            updateModeColor();
-        });
-        // Ouvrir en mode précis si des options précises sont déjà actives
-        const hasPreciseConfig = !isWelcome && (
-            workRules.weeklyOvertimeEnabled || workRules.ancienneteEnabled ||
-            workRules.thirteenthMonth.enabled || workRules.customNetCoeff !== null ||
-            workRules.primes.some(p => p.enabled)
-        );
-        preciseToggle.checked = hasPreciseConfig;
-        simpleDiv.style.display = hasPreciseConfig ? 'none' : 'block';
-        preciseDiv.style.display = hasPreciseConfig ? 'block' : 'none';
-        updateModeColor();
+        // Tous les réglages sont accessibles : plus de bascule simple/précis, les options avancées sont dans un volet repliable.
         // Primes container
         const primesContainer = document.getElementById('primesContainer');
         function renderPrimes() {
@@ -1239,7 +1205,8 @@
                 if (!isNaN(s2) && !isNaN(e2) && !isNaN(r2)) { workRules.nightStart2 = s2; workRules.nightEnd2 = e2; workRules.nightRate2 = r2 / 100; }
                 else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
             } else { workRules.nightStart2 = workRules.nightEnd2 = workRules.nightRate2 = null; }
-            if (preciseToggle.checked) {
+            const _ccn = document.getElementById('wConventionInput'); if (_ccn) workRules.ccnLabel = _ccn.value;
+            {
                 workRules.statutDetaille = document.getElementById('wStatutDetaille').value;
                 workRules.customNetCoeff = customCoeffInput.value ? parseFloat(customCoeffInput.value.replace(',', '.')) : null;
                 workRules.weeklyOvertimeEnabled = weeklyCheck.checked;
@@ -1351,7 +1318,7 @@
                         <div class="wizard-panel" data-step="3" style="display:none;">
                             <div class="welcome-group" id="ccnBlock" style="background:var(--btn-secondary-bg); border-radius:16px; padding:14px;">
                                 <label>Ta convention collective <span class="help-icon" data-help="Préremplit les majorations selon ta branche. Valeurs indicatives des minima : ton accord d'entreprise ou ton contrat peut prévoir mieux.">ℹ️</span></label>
-                                <input list="ccnList" id="wConventionInput" class="input-number" placeholder="Nom ou n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
+                                <input list="ccnList" id="wConventionInput" class="input-number" value="${escapeHtml(wr.ccnLabel || '')}" placeholder="Nom ou n° IDCC (ex : 1979, hôtels...)" autocomplete="off">
                                 <datalist id="ccnList"></datalist>
                                 <button type="button" class="btn btn-secondary" id="applyCcnBtn" style="display:block; margin:12px auto 0; font-size:0.82rem; padding:8px 18px;">Appliquer les valeurs de ma convention</button>
                                 <div class="modal-forgot" id="ccnUnknownLink" style="text-align:center; margin-top:10px;">Je ne connais pas ma convention</div>
@@ -1385,7 +1352,15 @@
                                 <div class="welcome-group"><label>Type</label><select id="wThirteenthType" class="time-input-group select"><option value="once" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'once') ? 'selected' : ''}>Versé en une fois</option><option value="monthly" ${(wr.thirteenthMonth && wr.thirteenthMonth.type === 'monthly') ? 'selected' : ''}>Mensualisé</option></select></div>
                                 <div class="welcome-group"><label>Montant annuel (€)</label><input type="text" id="wThirteenthAmount" class="input-number" value="${(wr.thirteenthMonth && wr.thirteenthMonth.amount) ? wr.thirteenthMonth.amount : ''}" placeholder="Montant"></div>
                                 <div class="welcome-group"><label>Mois de versement</label><select id="wThirteenthMonth" class="time-input-group select">${moisOptions}</select></div>
-                                <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:4px;">Options plus fines (statut détaillé, seuils d'heures sup avancés…) : dans « Mon employeur ».</p>
+                                <div class="card-title" style="margin:12px 0 6px;">Statut et coefficient</div>
+                                <div class="welcome-group"><label>Statut détaillé</label><select id="wStatutDetaille" class="time-input-group select"><option value="Ouvrier" ${wr.statutDetaille === 'Ouvrier' ? 'selected' : ''}>Ouvrier</option><option value="Employé" ${wr.statutDetaille === 'Employé' ? 'selected' : ''}>Employé</option><option value="ETAM" ${wr.statutDetaille === 'ETAM' ? 'selected' : ''}>ETAM</option><option value="Cadre" ${wr.statutDetaille === 'Cadre' ? 'selected' : ''}>Cadre</option></select></div>
+                                <div class="welcome-group"><label>Coefficient brut→net personnalisé (optionnel)</label><input type="text" id="wCustomNetCoeff" class="input-number" placeholder="ex : 0.78" value="${wr.customNetCoeff != null ? wr.customNetCoeff : ''}"></div>
+                                <div class="card-title" style="margin:12px 0 6px;">Heures sup. avancées</div>
+                                <div class="inline-switch"><span>Utiliser un seuil hebdomadaire</span><label class="switch"><input type="checkbox" id="wWeeklyOvertimeEnabled" ${wr.weeklyOvertimeEnabled ? 'checked' : ''}><span class="slider"></span></label></div>
+                                <div class="welcome-group"><label>Seuil hebdomadaire (heures)</label><input type="text" id="wWeeklyOvertimeThreshold" class="input-number" value="${wr.weeklyOvertimeThreshold || 35}"></div>
+                                <div class="welcome-group"><label>Second seuil HS (heures/jour, optionnel)</label><input type="text" id="wOvertimeThreshold2" class="input-number" placeholder="ex : 8" value="${wr.overtimeThreshold2 || ''}"></div>
+                                <div class="welcome-group"><label>Majoration second seuil (%)</label><input type="text" id="wOvertimeRate2" class="input-number" placeholder="ex : 50" value="${wr.overtimeRate2 ? Math.round(wr.overtimeRate2 * 100) : ''}"></div>
+                                <div class="welcome-group"><label>Heures mensuelles contractuelles</label><input type="text" id="wMonthlyContractHours" class="input-number" value="${wr.monthlyContractHours || 151.67}"></div>
                             </details>
                         </div>
                         <div style="display:flex; gap:10px; margin-top:22px;">
@@ -1526,6 +1501,14 @@
                 workRules.thirteenthMonth.amount = parseFloat(document.getElementById('wThirteenthAmount').value.replace(',', '.')) || 0;
                 workRules.thirteenthMonth.month = parseInt(document.getElementById('wThirteenthMonth').value);
             }
+            const _sd = document.getElementById('wStatutDetaille'); if (_sd) workRules.statutDetaille = _sd.value;
+            const _cc = document.getElementById('wCustomNetCoeff'); workRules.customNetCoeff = (_cc && _cc.value) ? parseFloat(_cc.value.replace(',', '.')) : null;
+            const _wo = document.getElementById('wWeeklyOvertimeEnabled'); workRules.weeklyOvertimeEnabled = _wo ? _wo.checked : false;
+            if (workRules.weeklyOvertimeEnabled) { const _wt = document.getElementById('wWeeklyOvertimeThreshold'); if (_wt) workRules.weeklyOvertimeThreshold = parseFloat(_wt.value) || 35; }
+            const _t2 = document.getElementById('wOvertimeThreshold2'); workRules.overtimeThreshold2 = (_t2 && _t2.value) ? parseFloat(_t2.value) : null;
+            const _r2 = document.getElementById('wOvertimeRate2'); workRules.overtimeRate2 = (_r2 && _r2.value) ? parseFloat(_r2.value) / 100 : null;
+            const _mh = document.getElementById('wMonthlyContractHours'); if (_mh) workRules.monthlyContractHours = parseFloat(_mh.value) || 151.67;
+            const _wccn = document.getElementById('wConventionInput'); if (_wccn) workRules.ccnLabel = _wccn.value;
             workRules.holidaysList = generateHolidays(new Date().getFullYear());
             saveWorkRules();
             if (isWelcome) {
