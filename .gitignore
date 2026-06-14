@@ -1,0 +1,23 @@
+# Secrets / config sensible - ne jamais committer
+.env
+.env.*
+*.key
+*.pem
+serviceAccount*.json
+firebase-adminsdk*.json
+google-services.json
+secrets.json
+credentials.json
+
+# Dependances
+node_modules/
+
+# OS / editeur
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+tmp/
